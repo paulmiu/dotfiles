@@ -22,8 +22,13 @@ gpasswd wheel -a <SERVER_USERNAME>
 
 ```bash
 dnf update
-dnf install git vim tmux fish
+dnf group install --allowerasing "Fedora Server Edition" "Infrastructure Server"
+dnf install util-linux-user tar net-tools lsof bind-utils git vim tmux fish mosh ncdu htop fzf bat fd-find ripgrep jq
 ```
+
+The install script asks which tool groups should be installed. Kubernetes tools
+(`kubectx`, `kubens`) are available as a separate group and are disabled by
+default.
 
 ### STEP 4: Clone the dotfiles from these reporitory
 

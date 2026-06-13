@@ -11,41 +11,53 @@ bash
 ## 2. Install homebrew
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-## 3. Install following brew packages
+## 3. Install selected brew package groups
 
 ```bash
-# highly recommended (basics)
-brew install coreutils binutils diffutils findutils bash openssh mosh python
-# recommended (cli tools)
-brew install git fish tmux ncdu vim kubernetes-cli fzf bat fd ripgrep
-# optional
-# brew install gnutls grep less gawk gnu-sed gnu-tar gzip rsync wget wdiff gnu-indent unzip gnu-which watch
+# GNU/core command-line tools
+brew install coreutils binutils diffutils findutils gnu-getopt gawk gnutls grep gnu-sed gnu-tar gzip gnu-indent gnu-which gnu-time less python bash openssh p7zip rsync wget netcat wdiff unzip watch
 
-# macOS GUI apps
-brew cask install iterm2
+# Dotfiles essentials
+brew install mosh git fish tmux vim fzf bat fd ripgrep jq gpg nmap
+
+# Terminal UI tools
+brew install ncdu htop nnn tig
+
+# Developer shell tools
+brew install reattach-to-user-namespace shellcheck shfmt
+
+# Misc media and network tools
+brew install libpq ffmpeg tree pipenv deno rclone sshuttle youtube-dl
+
+# Kubernetes tools (disabled by default in the install script)
+brew install kubernetes-cli helm kubectx k9s k3d velero
+
+# GUI apps
+brew install --cask iterm2
 ```
 
-## 4. Create a folder with symbolic links to all the gnu binaries
+The install script asks which package groups should be installed. Kubernetes
+tools are available as a separate group and are disabled by default.
+
+## 4. Create symbolic links to all GNU binaries
 
 ```bash
-sudo install -d -m 0755 -o $USER -g admin /usr/local/gnubin
+HOMEBREW_PREFIX="$(brew --prefix)"
+HOMEBREW_BIN_DIR="$HOMEBREW_PREFIX/bin"
 
-for gnuutil in /usr/local/opt/**/libexec/gnubin/*; do
-    ln -s $gnuutil /usr/local/gnubin/
-done
-
-for pybin in /usr/local/opt/python/libexec/bin/*; do
-    ln -s $pybin /usr/local/gnubin/
-done
+find "$HOMEBREW_PREFIX" -path '*/libexec/gnubin/*' -type f -exec ln -fs {} "$HOMEBREW_BIN_DIR/" \;
+find "$HOMEBREW_PREFIX" -path '*/python/libexec/bin/*' -type f -exec ln -fs {} "$HOMEBREW_BIN_DIR/" \;
 ```
 
-## 5. Add /usr/local/gnubin as first line to /etc/paths
+## 5. Add Homebrew binaries as first line to /etc/paths
 
 ```bash
-sudo sed -i '' '1s/^/\/usr\/local\/gnubin\'$'\n/' /etc/paths
+HOMEBREW_BIN_DIR="$(brew --prefix)/bin"
+sudo sed -i '' "1s#^#$HOMEBREW_BIN_DIR\\
+#" /etc/paths
 ```
 
 ## 6. Download dotfiles
@@ -93,14 +105,14 @@ fi
 ## 11. Install fisher - a package manager for the fish shell
 
 ```bash
-curl https://git.io/fisher --create-dirs -sLo $HOME/.config/fish/functions/fisher.fish
-fish -c fisher
+fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
 ```
 
 ## 12. Install vim plugins
 
 ```bash
-vim
+git clone https://github.com/VundleVim/Vundle.vim.git $HOME/.vim/bundle/vundle
+vim -n -es -i NONE -u "$HOME/.vimrc" -c "set nomore" -c "PluginInstall" -c "qall"
 ```
 
 ## 13. Install tmux plugin manager and tmux plugins

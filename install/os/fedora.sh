@@ -4,56 +4,91 @@
 bold_start=$(tput bold)
 bold_end=$(tput sgr0)
 
-if [ $EUID != 0 ]; then
+if [ "$EUID" -ne 0 ]; then
     echo "Installation script has to be called with root permissions!"
     exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MULTISELECT_SCRIPT="$INSTALL_DIR/utils/multiselect.sh"
+MULTISELECT_URL="https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/utils/multiselect.sh"
+
+download_file() {
+    local url=$1
+    local output_file=$2
+
+    if command -v curl &>/dev/null; then
+        curl -fsSL "$url" -o "$output_file"
+    elif command -v wget &>/dev/null; then
+        wget -qO "$output_file" "$url"
+    else
+        echo "Could not download $url because curl and wget are both missing." >&2
+        return 1
+    fi
+}
+
+if [ -f "$MULTISELECT_SCRIPT" ]; then
+    # shellcheck source=../utils/multiselect.sh disable=SC1091
+    source "$MULTISELECT_SCRIPT"
+else
+    MULTISELECT_TMP="$(mktemp)"
+    if download_file "$MULTISELECT_URL" "$MULTISELECT_TMP"; then
+        # shellcheck source=/dev/null
+        source "$MULTISELECT_TMP"
+        rm -f "$MULTISELECT_TMP"
+    else
+        rm -f "$MULTISELECT_TMP"
+        echo "Could not download multiselect helper from $MULTISELECT_URL" >&2
+        exit 1
+    fi
 fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -u|--admin-user)
-            ADMIN_USER="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass an admin user as second argument to -u or --admin-user!" >&2
                 exit 1
             fi
+            ADMIN_USER="$2"
+            shift 2
         ;;
         --admin-user=*)
             ADMIN_USER="${1#*=}"
             shift
         ;;
         -n|--nickname)
-            NICKNAME="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a nickname as second argument to -n or --nickname!" >&2
                 exit 1
             fi
+            NICKNAME="$2"
+            shift 2
         ;;
         --nickname=*)
             NICKNAME="${1#*=}"
             shift
         ;;
         -k|--add-ssh-key)
-            PUBLIC_SSH_KEY="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a public SSH key as second argument to -k or --add-ssh-key!" >&2
                 exit 1
             fi
+            PUBLIC_SSH_KEY="$2"
+            shift 2
         ;;
         --add-ssh-key=*)
             PUBLIC_SSH_KEY="${1#*=}"
             shift
         ;;
         -p|--new-ssh-port)
-            NEW_SSH_PORT="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a port number as second argument to -p or --new-ssh-port!" >&2
                 exit 1
             fi
+            NEW_SSH_PORT="$2"
+            shift 2
         ;;
         --new-ssh-port=*)
             NEW_SSH_PORT="${1#*=}"
@@ -73,79 +108,82 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-read -p "Change password of current user ($(whoami))? [${bold_start}Y${bold_end}/n]: " change_user_password </dev/tty
+read -r -p "Change password of current user ($(whoami))? [${bold_start}Y${bold_end}/n]: " change_user_password </dev/tty
 [ -z "$change_user_password" ] && change_user_password="y"
 case "${change_user_password:0:1}" in
     y|Y )
-        passwd </dev/tty
-        while [ $? -ne 0 ]
+        while ! passwd </dev/tty
         do
-            passwd </dev/tty
+            :
         done
     ;;
 esac
 
-read -p "Change hostname (current hostname is ${bold_start}$(hostname)${bold_end})? [${bold_start}Y${bold_end}/n]: " change_hostname </dev/tty
+read -r -p "Change hostname (current hostname is ${bold_start}$(hostname)${bold_end})? [${bold_start}Y${bold_end}/n]: " change_hostname </dev/tty
 [ -z "$change_hostname" ] && change_hostname="y"
 case "${change_hostname:0:1}" in
     y|Y )
         default_hostname=""
-        [ -n "$NICKNAME" ] && default_hostname=" [${bold_start}$NICKNAME${bold_end}]" 
-        read -p "New hostname$default_hostname: " new_hostname </dev/tty
+        [ -n "$NICKNAME" ] && default_hostname=" [${bold_start}$NICKNAME${bold_end}]"
+        read -r -p "New hostname$default_hostname: " new_hostname </dev/tty
         [ -z "$new_hostname" ] && [ -n "$NICKNAME" ] && new_hostname="$NICKNAME"
         while [ -z "$new_hostname" ] || [[ ! "$new_hostname" =~ ^[0-9a-zA-Z.-]+$ ]]
         do
-            read -p "Hostname must only contain lowercase and uppercase letters, numbers, dashes (-) and dots (.): " new_hostname </dev/tty
+            read -r -p "Hostname must only contain lowercase and uppercase letters, numbers, dashes (-) and dots (.): " new_hostname </dev/tty
         done
 
         hostnamectl set-hostname "$new_hostname"
     ;;
 esac
 
-create_admin_user() {
-    all_users=(`awk -F':' '{ print $1}' /etc/passwd`)
+user_exists() {
+    id -u "$1" &>/dev/null
+}
 
+create_admin_user() {
     # ADMIN_USER is specified and already exists
-    if [ $ADMIN_USER ] && [[ " ${all_users[@]} " =~ " ${ADMIN_USER} " ]]; then
+    if [ "$ADMIN_USER" ] && user_exists "$ADMIN_USER"; then
         # no need to ask for the admin user or to create a new user account
         return
     fi
 
-    if [ $ADMIN_USER ]; then
+    if [ "$ADMIN_USER" ]; then
         new_admin_user="$ADMIN_USER"
     else
-        read -p "Username for the new admin: " new_admin_user </dev/tty
-        while [ -z "$new_admin_user" ] || [[ " ${all_users[@]} " =~ " ${new_admin_user} " ]]
+        read -r -p "Username for the new admin: " new_admin_user </dev/tty
+        while [ -z "$new_admin_user" ] || user_exists "$new_admin_user"
         do
-            read -p "Username is blank or does already exist. Please enter another username: " new_admin_user </dev/tty
+            read -r -p "Username is blank or does already exist. Please enter another username: " new_admin_user </dev/tty
         done
     fi
 
-    adduser $new_admin_user
+    adduser "$new_admin_user"
     echo "Password for the new admin user ($new_admin_user)"
-    passwd $new_admin_user </dev/tty
-    while [ $? -ne 0 ]
+    while ! passwd "$new_admin_user" </dev/tty
     do
-        passwd $new_admin_user </dev/tty
+        :
     done
-    gpasswd -a $new_admin_user wheel
+    gpasswd -a "$new_admin_user" wheel
 
     ADMIN_USER="$new_admin_user"
 }
 
-if [ $ADMIN_USER ]; then
+if [ "$ADMIN_USER" ]; then
     create_admin_user
 else
-    read -p "Setup an admin user? [${bold_start}Y${bold_end}/n]: " setup_admin_user </dev/tty
+    read -r -p "Setup an admin user? [${bold_start}Y${bold_end}/n]: " setup_admin_user </dev/tty
     [ -z "$setup_admin_user" ] && setup_admin_user="y"
     case "${setup_admin_user:0:1}" in
         y|Y )
             # cross-linux method to get all human user accounts
             login_file="/etc/login.defs"
             passwd_file="/etc/passwd"
-            user_id_min=$(grep "^UID_MIN" $login_file)
-            user_id_max=$(grep "^UID_MAX" $login_file)
-            human_users=(`awk -F':' -v "min=${user_id_min##UID_MIN}" -v "max=${user_id_max##UID_MAX}" '{ if ( $3 >= min && $3 <= max  && $7 != "/sbin/nologin" ) print $1 }' "$passwd_file"`)
+            user_id_min=$(grep "^UID_MIN" "$login_file")
+            user_id_max=$(grep "^UID_MAX" "$login_file")
+            human_users=()
+            while IFS= read -r human_user; do
+                human_users+=( "$human_user" )
+            done < <(awk -F':' -v "min=${user_id_min##UID_MIN}" -v "max=${user_id_max##UID_MAX}" '{ if ( $3 >= min && $3 <= max  && $7 != "/sbin/nologin" ) print $1 }' "$passwd_file")
 
             if [ ${#human_users[@]} -eq 0 ]; then
                 echo "Couldn't find user accounts. Therefore creating a new one."
@@ -155,7 +193,7 @@ else
 
                 user_options=('Create new admin user')
                 user_options+=("${human_users[@]}")
-                user_options_length=(${#user_options[@]})
+                user_options_length=${#user_options[@]}
 
                 select user_option in "${user_options[@]}"
                 do
@@ -163,7 +201,7 @@ else
                         if (( REPLY == 1 )); then
                             create_admin_user
                             break;
-                        elif [ $REPLY -le $user_options_length ]; then
+                        elif [ "$REPLY" -le "$user_options_length" ]; then
                             ADMIN_USER="$user_option"
                             break;
                         else
@@ -178,45 +216,220 @@ else
     esac
 fi
 
+add_selected_dnf_packages() {
+    SELECTED_DNF_PACKAGES+=("$@")
+}
+
+add_selected_dnf_groups() {
+    SELECTED_DNF_GROUPS+=("$@")
+}
+
+choose_tools_to_install() {
+    tool_groups=(
+        "Fedora server package groups"
+        "Basic system tools (util-linux-user, tar, net-tools, lsof, bind-utils)"
+        "Dotfiles essentials (git, vim, fish, tmux)"
+        "Remote shell tools (mosh)"
+        "Terminal UI tools (ncdu, htop)"
+        "Search and JSON tools (fzf, bat, fd-find, ripgrep, jq)"
+        "Cockpit web console"
+        "Kubernetes tools (kubectx, kubens)"
+    )
+    # Used by multiselect through a nameref.
+    # shellcheck disable=SC2034
+    tool_group_defaults=(
+        "true"
+        "true"
+        "true"
+        "true"
+        "true"
+        "true"
+        "true"
+        "false"
+    )
+    selected_tool_groups=()
+
+    echo
+    echo "Choose which tool groups should be installed:"
+    multiselect "true" selected_tool_groups tool_groups tool_group_defaults </dev/tty
+
+    echo "Selected tool groups:"
+    selected_tool_group_count=0
+    for idx in "${!tool_groups[@]}"; do
+        if [[ ${selected_tool_groups[idx]} == "true" ]]; then
+            echo "  - ${tool_groups[idx]}"
+            selected_tool_group_count=$((selected_tool_group_count + 1))
+        fi
+    done
+    if (( selected_tool_group_count == 0 )); then
+        echo "  - none"
+    fi
+
+    SELECTED_DNF_GROUPS=()
+    SELECTED_DNF_PACKAGES=()
+    INSTALL_COCKPIT=false
+    INSTALL_KUBERNETES_TOOLS=false
+
+    for idx in "${!tool_groups[@]}"; do
+        if [[ ${selected_tool_groups[idx]} != "true" ]]; then
+            continue
+        fi
+
+        case "$idx" in
+            0)
+                add_selected_dnf_groups "Fedora Server Edition" "Infrastructure Server"
+            ;;
+            1)
+                add_selected_dnf_packages util-linux-user tar net-tools lsof bind-utils
+            ;;
+            2)
+                add_selected_dnf_packages git vim fish tmux
+            ;;
+            3)
+                add_selected_dnf_packages mosh
+            ;;
+            4)
+                add_selected_dnf_packages ncdu htop
+            ;;
+            5)
+                add_selected_dnf_packages fzf bat fd-find ripgrep jq
+            ;;
+            6)
+                INSTALL_COCKPIT=true
+            ;;
+            7)
+                INSTALL_KUBERNETES_TOOLS=true
+            ;;
+        esac
+    done
+}
+
+firewall_is_running() {
+    command -v firewall-cmd &>/dev/null && firewall-cmd --state --quiet
+}
+
+install_kubernetes_tools() {
+    if ! command -v git &>/dev/null; then
+        echo "Skipping kubectx and kubens because git is not installed."
+        return 0
+    fi
+
+    if [ ! -d /opt/kubectx ]; then
+        git clone https://github.com/ahmetb/kubectx /opt/kubectx
+    fi
+
+    ln -fs /opt/kubectx/kubectx /usr/local/bin/kubectx
+    ln -fs /opt/kubectx/kubens /usr/local/bin/kubens
+    mkdir -p ~/.config/fish/completions
+    ln -fs /opt/kubectx/completion/kubectx.fish ~/.config/fish/completions/
+    ln -fs /opt/kubectx/completion/kubens.fish ~/.config/fish/completions/
+}
+
+install_fisher_plugins() {
+    if ! command -v curl &>/dev/null; then
+        echo "Skipping fisher because curl is not installed."
+        return 0
+    fi
+
+    fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
+}
+
+install_vim_plugins() {
+    local vim_plugin_marker
+    local vim_plugin_status
+    local -a vim_plugin_command
+
+    if ! command -v vim &>/dev/null; then
+        echo "Skipping Vim plugins because Vim is not installed."
+        return 0
+    fi
+
+    if ! command -v git &>/dev/null; then
+        echo "Skipping Vim plugins because git is not installed."
+        return 0
+    fi
+
+    vim_plugin_marker="$HOME/.vim/bundle/.dotfiles_plugins_installed"
+    if [ -f "$vim_plugin_marker" ]; then
+        return 0
+    fi
+
+    mkdir -p "$HOME/.vim/bundle"
+
+    if [ ! -f "$HOME/.vim/bundle/vundle/autoload/vundle.vim" ]; then
+        rm -rf "$HOME/.vim/bundle/vundle"
+        if ! git clone https://github.com/VundleVim/Vundle.vim.git "$HOME/.vim/bundle/vundle"; then
+            echo "Skipping Vim plugins because Vundle could not be installed."
+            return 0
+        fi
+    fi
+
+    echo "Installing Vim plugins with a 10 minute timeout..."
+    vim_plugin_command=(vim -n -es -i NONE -u "$HOME/.vimrc" -c "set nomore" -c "PluginInstall" -c "qall")
+
+    if command -v timeout &>/dev/null; then
+        timeout --foreground 10m "${vim_plugin_command[@]}" </dev/null &>/dev/null
+        vim_plugin_status=$?
+        if (( vim_plugin_status == 124 )); then
+            echo "Skipping remaining Vim plugin setup because it timed out."
+            return 0
+        elif (( vim_plugin_status != 0 )); then
+            echo "Skipping remaining Vim plugin setup because PluginInstall failed."
+            return 0
+        fi
+    elif ! "${vim_plugin_command[@]}" </dev/null &>/dev/null; then
+        echo "Skipping remaining Vim plugin setup because PluginInstall failed."
+        return 0
+    fi
+
+    touch "$vim_plugin_marker"
+}
 
 install_basic_packages() {
+    choose_tools_to_install
+
     set -x
     dnf update -y
 
-    # Make sure fedora server packages are installed
-    dnf group install -y "Fedora Server Edition" "Infrastructure Server" --allowerasing
-
-    # Just to make sure that the very basics are installed
-    # util-linux-user  => chsh (change shell)
-    # tar              => an archiving utility
-    # net-tools        => netstat (network statistics)
-    # lsof             => list open files
-    # bind-utils       => dig (DNS lookup utility)
-    dnf install -y util-linux-user tar net-tools lsof bind-utils
-
-    # Install most used packages
-    dnf install -y git vim fish tmux mosh ncdu htop fzf bat fd-find ripgrep jq
-
-    # Install kubectx
-    git clone https://github.com/ahmetb/kubectx /opt/kubectx
-    ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx
-    ln -s /opt/kubectx/kubens /usr/local/bin/kubens
-    mkdir -p ~/.config/fish/completions
-    ln -s /opt/kubectx/completion/kubectx.fish ~/.config/fish/completions/
-    ln -s /opt/kubectx/completion/kubens.fish ~/.config/fish/completions/
-
-    # Install cockpit (https://cockpit-project.org/)
-    dnf install -y polkit cockpit
-    systemctl enable --now cockpit.socket
-    systemctl start cockpit
-    if [ $(firewall-cmd --state --quiet) ]; then
-        firewall-cmd --add-service=cockpit --permanent
+    if [ ${#SELECTED_DNF_GROUPS[@]} -gt 0 ]; then
+        echo "Installing DNF groups: ${SELECTED_DNF_GROUPS[*]}"
+        dnf group install -y --allowerasing "${SELECTED_DNF_GROUPS[@]}"
+    else
+        echo "No DNF package groups selected."
     fi
+
+    if [ ${#SELECTED_DNF_PACKAGES[@]} -gt 0 ]; then
+        echo "Installing DNF packages: ${SELECTED_DNF_PACKAGES[*]}"
+        dnf install -y "${SELECTED_DNF_PACKAGES[@]}"
+    else
+        echo "No DNF tool packages selected."
+    fi
+
+    if [ "$INSTALL_KUBERNETES_TOOLS" == "true" ]; then
+        echo "Installing Kubernetes tools: kubectx kubens"
+        install_kubernetes_tools
+    fi
+
+    if [ "$INSTALL_COCKPIT" == "true" ]; then
+        dnf install -y polkit cockpit
+        systemctl enable --now cockpit.socket
+        systemctl start cockpit
+        if firewall_is_running; then
+            firewall-cmd --add-service=cockpit --permanent
+            firewall-cmd --reload
+        fi
+    fi
+
     { set +x; } 2>/dev/null
 }
 
 setup_dotfiles() {
-    cd "$HOME"
+    cd "$HOME" || return 1
+
+    if ! command -v git &>/dev/null; then
+        echo "Skipping dotfiles setup because git is not installed."
+        return 0
+    fi
 
     # Download and install dotfiles
     if [ ! -d "$HOME/.homesick/repos/homeshick" ]; then
@@ -238,24 +451,30 @@ setup_dotfiles() {
 
     # Install tmux plugin manager and tmux plugins
     if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
-        set -x
-        git clone https://github.com/tmux-plugins/tpm $HOME/.tmux/plugins/tpm
-        tmux new-session -s "$USER" -d "$HOME/.tmux/plugins/tpm/tpm && $HOME/.tmux/plugins/tpm/scripts/install_plugins.sh"
-        { set +x; } 2>/dev/null
+        if command -v tmux &>/dev/null; then
+            set -x
+            git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
+            tmux new-session -s "$USER" -d "$HOME/.tmux/plugins/tpm/tpm && $HOME/.tmux/plugins/tpm/scripts/install_plugins.sh"
+            { set +x; } 2>/dev/null
+        else
+            echo "Skipping tmux plugins because tmux is not installed."
+        fi
     fi
 
     # Install vim plugins
-    if [ ! -d "$HOME/.vim/bundle" ]; then
-        set -x
-        vim +PluginInstall +qall &>/dev/null
-        { set +x; } 2>/dev/null
-    fi
+    set -x
+    install_vim_plugins
+    { set +x; } 2>/dev/null
 
     # Install fisher - a package manager for the fish shell
     if [ ! -f "$HOME/.config/fish/functions/fisher.fish" ]; then
-        set -x
-        fish -c "curl -sL https://git.io/fisher | source && fisher update"
-        { set +x; } 2>/dev/null
+        if command -v fish &>/dev/null; then
+            set -x
+            install_fisher_plugins
+            { set +x; } 2>/dev/null
+        else
+            echo "Skipping fisher because fish is not installed."
+        fi
     fi
 
     # Generate ssh key pair
@@ -270,9 +489,9 @@ setup_dotfiles() {
         { set +x; } 2>/dev/null
     fi
     set -x
-    chmod 700 $HOME/.ssh
-    chmod 600 $HOME/.ssh/*
-    chmod 644 $HOME/.ssh/*.pub
+    chmod 700 "$HOME/.ssh"
+    find "$HOME/.ssh" -type f ! -name '*.pub' -exec chmod 600 {} +
+    find "$HOME/.ssh" -type f -name '*.pub' -exec chmod 644 {} +
     { set +x; } 2>/dev/null
 
     if [ "$PUBLIC_SSH_KEY" ] && { [ -z "$ADMIN_USER" ] || [ "$ADMIN_USER" == "$USER" ]; }; then
@@ -285,51 +504,117 @@ install_basic_packages
 setup_dotfiles
 
 # Make fish the default shell for the current user
-if ! grep -Fxq "$(which fish)" /etc/shells; then
-    echo $(which fish) >> /etc/shells
+if command -v fish &>/dev/null; then
+    fish_path="$(command -v fish)"
+    if ! grep -Fxq "$fish_path" /etc/shells; then
+        echo "$fish_path" >> /etc/shells
+    fi
+    chsh -s "$fish_path"
+else
+    echo "Skipping fish as default shell because fish is not installed."
 fi
-chsh -s $(which fish)
 
 if [ "$ADMIN_USER" ]; then
-    sudo -u $ADMIN_USER /usr/bin/env bash -c "$(declare -f setup_dotfiles); ADMIN_USER='$ADMIN_USER'; PUBLIC_SSH_KEY='$PUBLIC_SSH_KEY'; setup_dotfiles"
+    setup_dotfiles_script="$(declare -f install_fisher_plugins install_vim_plugins setup_dotfiles); setup_dotfiles"
+    sudo -u "$ADMIN_USER" /usr/bin/env \
+        "ADMIN_USER=$ADMIN_USER" \
+        "PUBLIC_SSH_KEY=$PUBLIC_SSH_KEY" \
+        bash -c "$setup_dotfiles_script"
 
     # Make fish the default shell
-    set -x
-    chsh -s $(which fish) $ADMIN_USER
-    { set +x; } 2>/dev/null
+    if command -v fish &>/dev/null; then
+        set -x
+        chsh -s "$fish_path" "$ADMIN_USER"
+        { set +x; } 2>/dev/null
+    else
+        echo "Skipping fish as default shell for $ADMIN_USER because fish is not installed."
+    fi
 fi
 
-# activate tmux autostart (start or attach tmux on login. client has to pass the environment variable TMUX_AUTOSTART=true)
 ssh_config_file="/etc/ssh/sshd_config"
 
-echo -e "\n# Allow user to pass the TMUX_AUTOSTART environment variable." >> $ssh_config_file
-echo "AcceptEnv TMUX_AUTOSTART" >> $ssh_config_file
+restart_ssh_listener() {
+    local socket_unit=""
+    local service_unit=""
 
+    # Ensure that we're not in WSL (Windows Subsystem for Linux)
+    if grep -qi Microsoft /proc/version; then
+        return 0
+    fi
+
+    systemctl daemon-reload
+
+    if systemctl list-unit-files --type=socket sshd.socket --no-legend 2>/dev/null | grep -q '^sshd.socket'; then
+        socket_unit="sshd.socket"
+    elif systemctl list-unit-files --type=socket ssh.socket --no-legend 2>/dev/null | grep -q '^ssh.socket'; then
+        socket_unit="ssh.socket"
+    fi
+
+    if systemctl list-unit-files --type=service sshd.service --no-legend 2>/dev/null | grep -q '^sshd.service'; then
+        service_unit="sshd.service"
+    elif systemctl list-unit-files --type=service ssh.service --no-legend 2>/dev/null | grep -q '^ssh.service'; then
+        service_unit="ssh.service"
+    fi
+
+    if [ "$socket_unit" ] && { systemctl is-active --quiet "$socket_unit" || systemctl is-enabled --quiet "$socket_unit"; }; then
+        systemctl restart "$socket_unit" || { [ "$service_unit" ] && systemctl restart "$service_unit"; }
+        return
+    fi
+
+    if [ "$service_unit" ]; then
+        systemctl restart "$service_unit"
+    fi
+}
+
+# Activate tmux autostart
+# Automatically start tmux or attach to the current session at login
+# SSH client has to pass the environment variable TMUX_AUTOSTART=true
+{
+    echo ""
+    echo "# Allow user to pass the TMUX_AUTOSTART environment variable."
+    echo "AcceptEnv TMUX_AUTOSTART"
+} >> "$ssh_config_file"
 
 if [ "$NEW_SSH_PORT" ]; then
     echo "Changing ssh port to: $NEW_SSH_PORT"
-    port_line_number="$(awk '/^Port / {print FNR}' $ssh_config_file)"
-    if [ "$port_line_number" ]; then
-        sed -i "${port_line_number}s/.*/Port $NEW_SSH_PORT/" $ssh_config_file
+
+    get_port_line_number() {
+        awk "/^[$1]*Port [1-9][0-9]{0,4}[ ]*/ {print FNR; exit}" "$ssh_config_file"
+    }
+
+    if port_line_number="$(get_port_line_number ' ')" && [ "$port_line_number" ]; then
+        sed -i "${port_line_number}s/.*/Port $NEW_SSH_PORT/" "$ssh_config_file"
+    elif port_line_number="$(get_port_line_number '# ')" && [ "$port_line_number" ]; then
+        sed -i "${port_line_number}s/.*/Port $NEW_SSH_PORT/" "$ssh_config_file"
     else
-        port_line_number="$(awk '/^#Port / {print FNR}' $ssh_config_file)"
-        if [ "$port_line_number" ]; then
-            sed -i "${port_line_number}s/.*/Port $NEW_SSH_PORT/" $ssh_config_file
-        else
-            echo "" >> $ssh_config_file
-            echo "Port $NEW_SSH_PORT" >> $ssh_config_file
-        fi
+        echo -e "\nPort $NEW_SSH_PORT" >> "$ssh_config_file"
     fi
 
-    # If firewall is turned on, open the new port
-    if [ $(firewall-cmd --state --quiet) ]; then
-        firewall-cmd --add-service=sshd --permanent
+    ssh_socket_unit=""
+    if systemctl list-unit-files --type=socket sshd.socket --no-legend 2>/dev/null | grep -q '^sshd.socket'; then
+        ssh_socket_unit="sshd.socket"
+    elif systemctl list-unit-files --type=socket ssh.socket --no-legend 2>/dev/null | grep -q '^ssh.socket'; then
+        ssh_socket_unit="ssh.socket"
     fi
 
-    # Ensure that we're not in WSL (Windows Subsystem for Linux)
-    if grep -vqi Microsoft /proc/version; then
-        systemctl restart sshd.service
+    if [ "$ssh_socket_unit" ]; then
+        ssh_socket_file="/etc/systemd/system/${ssh_socket_unit}.d/listen.conf"
+        mkdir -p "/etc/systemd/system/${ssh_socket_unit}.d/"
+        cat > "$ssh_socket_file" <<EOL
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:$NEW_SSH_PORT
+BindIPv6Only=ipv6-only
+ListenStream=[::]:$NEW_SSH_PORT
+EOL
     fi
+
+    if firewall_is_running; then
+        firewall-cmd --add-port="${NEW_SSH_PORT}/tcp" --permanent
+        firewall-cmd --reload
+    fi
+
+    restart_ssh_listener
 fi
 
 if [ "$REBOOT_AFTER_INSTALLATION" ]; then
