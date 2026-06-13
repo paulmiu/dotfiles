@@ -14,12 +14,26 @@ INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MULTISELECT_SCRIPT="$INSTALL_DIR/utils/multiselect.sh"
 MULTISELECT_URL="https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/utils/multiselect.sh"
 
+download_file() {
+    local url=$1
+    local output_file=$2
+
+    if command -v curl &>/dev/null; then
+        curl -fsSL "$url" -o "$output_file"
+    elif command -v wget &>/dev/null; then
+        wget -qO "$output_file" "$url"
+    else
+        echo "Could not download $url because curl and wget are both missing." >&2
+        return 1
+    fi
+}
+
 if [ -f "$MULTISELECT_SCRIPT" ]; then
     # shellcheck source=../utils/multiselect.sh disable=SC1091
     source "$MULTISELECT_SCRIPT"
-elif command -v curl &>/dev/null; then
+else
     MULTISELECT_TMP="$(mktemp)"
-    if curl -fsSL "$MULTISELECT_URL" -o "$MULTISELECT_TMP"; then
+    if download_file "$MULTISELECT_URL" "$MULTISELECT_TMP"; then
         # shellcheck source=/dev/null
         source "$MULTISELECT_TMP"
         rm -f "$MULTISELECT_TMP"
@@ -28,56 +42,53 @@ elif command -v curl &>/dev/null; then
         echo "Could not download multiselect helper from $MULTISELECT_URL" >&2
         exit 1
     fi
-else
-    echo "Could not find multiselect helper at $MULTISELECT_SCRIPT and curl is not installed." >&2
-    exit 1
 fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -u|--admin-user)
-            ADMIN_USER="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass an admin user as second argument to -u or --admin-user!" >&2
                 exit 1
             fi
+            ADMIN_USER="$2"
+            shift 2
         ;;
         --admin-user=*)
             ADMIN_USER="${1#*=}"
             shift
         ;;
         -n|--nickname)
-            NICKNAME="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a nickname as second argument to -n or --nickname!" >&2
                 exit 1
             fi
+            NICKNAME="$2"
+            shift 2
         ;;
         --nickname=*)
             NICKNAME="${1#*=}"
             shift
         ;;
         -k|--add-ssh-key)
-            PUBLIC_SSH_KEY="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a public SSH key as second argument to -k or --add-ssh-key!" >&2
                 exit 1
             fi
+            PUBLIC_SSH_KEY="$2"
+            shift 2
         ;;
         --add-ssh-key=*)
             PUBLIC_SSH_KEY="${1#*=}"
             shift
         ;;
         -p|--new-ssh-port)
-            NEW_SSH_PORT="$2"
-            shift 2
-            if [ $? -gt 0 ]; then
+            if [ -z "$2" ]; then
                 echo "You must pass a port number as second argument to -p or --new-ssh-port!" >&2
                 exit 1
             fi
+            NEW_SSH_PORT="$2"
+            shift 2
         ;;
         --new-ssh-port=*)
             NEW_SSH_PORT="${1#*=}"
@@ -97,70 +108,70 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-read -p "Change password of current user ($(whoami))? [${bold_start}Y${bold_end}/n]: " change_user_password </dev/tty
+read -r -p "Change password of current user ($(whoami))? [${bold_start}Y${bold_end}/n]: " change_user_password </dev/tty
 [ -z "$change_user_password" ] && change_user_password="y"
 case "${change_user_password:0:1}" in
     y|Y )
-        passwd </dev/tty
-        while [ $? -ne 0 ]
+        while ! passwd </dev/tty
         do
-            passwd </dev/tty
+            :
         done
     ;;
 esac
 
-read -p "Change hostname (current hostname is ${bold_start}$(hostname)${bold_end})? [${bold_start}Y${bold_end}/n]: " change_hostname </dev/tty
+read -r -p "Change hostname (current hostname is ${bold_start}$(hostname)${bold_end})? [${bold_start}Y${bold_end}/n]: " change_hostname </dev/tty
 [ -z "$change_hostname" ] && change_hostname="y"
 case "${change_hostname:0:1}" in
     y|Y )
         default_hostname=""
         [ -n "$NICKNAME" ] && default_hostname=" [${bold_start}$NICKNAME${bold_end}]" 
-        read -p "New hostname$default_hostname: " new_hostname </dev/tty
+        read -r -p "New hostname$default_hostname: " new_hostname </dev/tty
         [ -z "$new_hostname" ] && [ -n "$NICKNAME" ] && new_hostname="$NICKNAME"
         while [ -z "$new_hostname" ] || [[ ! "$new_hostname" =~ ^[0-9a-zA-Z.-]+$ ]]
         do
-            read -p "Hostname must only contain lowercase and uppercase letters, numbers, dashes (-) and dots (.): " new_hostname </dev/tty
+            read -r -p "Hostname must only contain lowercase and uppercase letters, numbers, dashes (-) and dots (.): " new_hostname </dev/tty
         done
 
         hostnamectl set-hostname "$new_hostname"
     ;;
 esac
 
-create_admin_user() {
-    all_users=(`awk -F':' '{ print $1}' /etc/passwd`)
+user_exists() {
+    id -u "$1" &>/dev/null
+}
 
+create_admin_user() {
     # ADMIN_USER is specified and already exists
-    if [ $ADMIN_USER ] && [[ " ${all_users[@]} " =~ " ${ADMIN_USER} " ]]; then
+    if [ "$ADMIN_USER" ] && user_exists "$ADMIN_USER"; then
         # no need to ask for the admin user or to create a new user account
         return
     fi
 
-    if [ $ADMIN_USER ]; then
+    if [ "$ADMIN_USER" ]; then
         new_admin_user="$ADMIN_USER"
     else
-        read -p "Username for the new admin: " new_admin_user </dev/tty
-        while [ -z "$new_admin_user" ] || [[ " ${all_users[@]} " =~ " ${new_admin_user} " ]]
+        read -r -p "Username for the new admin: " new_admin_user </dev/tty
+        while [ -z "$new_admin_user" ] || user_exists "$new_admin_user"
         do
-            read -p "Username is blank or does already exist. Please enter another username: " new_admin_user </dev/tty
+            read -r -p "Username is blank or does already exist. Please enter another username: " new_admin_user </dev/tty
         done
     fi
 
-    adduser --disabled-password --gecos "" $new_admin_user >/dev/null
+    adduser --disabled-password --gecos "" "$new_admin_user" >/dev/null
     echo "Password for the new admin user ($new_admin_user)"
-    passwd $new_admin_user </dev/tty
-    while [ $? -ne 0 ]
+    while ! passwd "$new_admin_user" </dev/tty
     do
-        passwd $new_admin_user </dev/tty
+        :
     done
-    adduser $new_admin_user sudo >/dev/null
+    adduser "$new_admin_user" sudo >/dev/null
 
     ADMIN_USER="$new_admin_user"
 }
 
-if [ $ADMIN_USER ]; then
+if [ "$ADMIN_USER" ]; then
     create_admin_user
 else
-    read -p "Setup an admin user? [${bold_start}Y${bold_end}/n]: " setup_admin_user </dev/tty
+    read -r -p "Setup an admin user? [${bold_start}Y${bold_end}/n]: " setup_admin_user </dev/tty
     [ -z "$setup_admin_user" ] && setup_admin_user="y"
     case "${setup_admin_user:0:1}" in
         y|Y )
@@ -169,7 +180,10 @@ else
             passwd_file="/etc/passwd"
             user_id_min=$(grep "^UID_MIN" $login_file)
             user_id_max=$(grep "^UID_MAX" $login_file)
-            human_users=(`awk -F':' -v "min=${user_id_min##UID_MIN}" -v "max=${user_id_max##UID_MAX}" '{ if ( $3 >= min && $3 <= max  && $7 != "/sbin/nologin" ) print $1 }' "$passwd_file"`)
+            human_users=()
+            while IFS= read -r human_user; do
+                human_users+=( "$human_user" )
+            done < <(awk -F':' -v "min=${user_id_min##UID_MIN}" -v "max=${user_id_max##UID_MAX}" '{ if ( $3 >= min && $3 <= max  && $7 != "/sbin/nologin" ) print $1 }' "$passwd_file")
 
             if [ ${#human_users[@]} -eq 0 ]; then
                 echo "Couldn't find user accounts. Therefore creating a new one."
@@ -179,7 +193,7 @@ else
 
                 user_options=('Create new admin user')
                 user_options+=("${human_users[@]}")
-                user_options_length=(${#user_options[@]})
+                user_options_length=${#user_options[@]}
 
                 select user_option in "${user_options[@]}"
                 do
@@ -187,7 +201,7 @@ else
                         if (( REPLY == 1 )); then
                             create_admin_user
                             break;
-                        elif [ $REPLY -le $user_options_length ]; then
+                        elif [ "$REPLY" -le "$user_options_length" ]; then
                             ADMIN_USER="$user_option"
                             break;
                         else
@@ -230,6 +244,18 @@ choose_tools_to_install() {
     echo
     echo "Choose which tool groups should be installed:"
     multiselect "true" selected_tool_groups tool_groups tool_group_defaults </dev/tty
+
+    echo "Selected tool groups:"
+    selected_tool_group_count=0
+    for idx in "${!tool_groups[@]}"; do
+        if [[ ${selected_tool_groups[idx]} == "true" ]]; then
+            echo "  - ${tool_groups[idx]}"
+            selected_tool_group_count=$((selected_tool_group_count + 1))
+        fi
+    done
+    if (( selected_tool_group_count == 0 )); then
+        echo "  - none"
+    fi
 
     SELECTED_APT_PACKAGES=()
     INSTALL_KUBERNETES_TOOLS=false
@@ -280,6 +306,11 @@ install_kubernetes_tools() {
 }
 
 install_fisher_plugins() {
+    if ! command -v curl &>/dev/null; then
+        echo "Skipping fisher because curl is not installed."
+        return 0
+    fi
+
     fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
 }
 
@@ -296,10 +327,14 @@ install_basic_packages() {
         -y --allow-downgrades --allow-remove-essential --allow-change-held-packages dist-upgrade
 
     if [ ${#SELECTED_APT_PACKAGES[@]} -gt 0 ]; then
+        echo "Installing APT packages: ${SELECTED_APT_PACKAGES[*]}"
         apt-get install -y "${SELECTED_APT_PACKAGES[@]}"
+    else
+        echo "No APT tool packages selected."
     fi
 
     if [ "$INSTALL_KUBERNETES_TOOLS" == "true" ]; then
+        echo "Installing Kubernetes tools: kubectx kubens"
         install_kubernetes_tools
     fi
 
@@ -383,9 +418,9 @@ setup_dotfiles() {
         { set +x; } 2>/dev/null
     fi
     set -x
-    chmod 700 $HOME/.ssh
-    chmod 600 $HOME/.ssh/*
-    chmod 644 $HOME/.ssh/*.pub
+    chmod 700 "$HOME/.ssh"
+    find "$HOME/.ssh" -type f ! -name '*.pub' -exec chmod 600 {} +
+    find "$HOME/.ssh" -type f -name '*.pub' -exec chmod 644 {} +
     { set +x; } 2>/dev/null
 
     if [ "$PUBLIC_SSH_KEY" ] && { [ -z "$ADMIN_USER" ] || [ "$ADMIN_USER" == "$USER" ]; }; then
@@ -444,9 +479,11 @@ restart_ssh_listener() {
 # Activate tmux autostart
 # Automatically start tmux or attach to the current session at login
 # SSH client has to pass the environment variable TMUX_AUTOSTART=true
-echo "" >> $ssh_config_file
-echo "# Allow user to pass the TMUX_AUTOSTART environment variable." >> $ssh_config_file
-echo "AcceptEnv TMUX_AUTOSTART" >> $ssh_config_file
+{
+    echo ""
+    echo "# Allow user to pass the TMUX_AUTOSTART environment variable."
+    echo "AcceptEnv TMUX_AUTOSTART"
+} >> "$ssh_config_file"
 
 if [ "$NEW_SSH_PORT" ]; then
     echo "Changing ssh port to: $NEW_SSH_PORT"
