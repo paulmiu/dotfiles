@@ -33,6 +33,7 @@ if test -f $HOME/bin/google-cloud-sdk/path.fish.inc
     source $HOME/bin/google-cloud-sdk/path.fish.inc
 end
 source "$HOME/.cargo/env.fish"
+source "$HOME/.deno/env.fish"
 pyenv init - fish | source
 
 # CHECK IF BAT IS INSTALLED (CAT ALTERNATIVE)
@@ -50,7 +51,7 @@ if type -q $__BAT_CMD
     set -x SYSTEMD_PAGER "$__BAT_CMD -l log -p"
 end
 # SET PNPM HOME
-set -gx PNPM_HOME "/Users/manu/.local/share/pnpm"
+set -gx PNPM_HOME "$HOME/.local/share/pnpm"
 if not string match -q -- $PNPM_HOME $PATH
   set -gx PATH "$PNPM_HOME" $PATH
 end

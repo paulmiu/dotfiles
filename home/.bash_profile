@@ -14,4 +14,4 @@ fi
 
 
 . "$HOME/.cargo/env"
-. "/Users/manu/.deno/env"
+. "$HOME/.deno/env"
