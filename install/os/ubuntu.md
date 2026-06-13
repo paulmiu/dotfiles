@@ -44,7 +44,7 @@ The tool groups are selected with a multi-select prompt. Kubernetes tools are no
 
 ```bash
 Basic system tools: net-tools, gawk, uidmap
-Dotfiles essentials: git, vim, fish, tmux
+Dotfiles essentials: curl, git, vim, fish, tmux
 Remote shell tools: mosh
 Terminal UI tools: ncdu, htop
 Search and JSON tools: fzf, bat, fd-find, ripgrep, jq
@@ -75,7 +75,7 @@ apt-get upgrade
 apt-get dist-upgrade
 
 apt-get install net-tools gawk uidmap
-apt-get install git vim fish tmux mosh ncdu htop fzf bat fd-find ripgrep jq
+apt-get install curl git vim fish tmux mosh ncdu htop fzf bat fd-find ripgrep jq
 ```
 
 #### STEP 4: Install kubectx and kubens
@@ -106,7 +106,7 @@ tmux new-session -s "$USER" -d "$HOME/.tmux/plugins/tpm/tpm && $HOME/.tmux/plugi
 
 vim +PluginInstall +qall
 
-fish -c "curl -sL https://git.io/fisher | source && fisher update"
+fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
 ```
 
 #### STEP 7: Generate an SSH key pair
@@ -161,7 +161,7 @@ Then reload systemd and restart SSH:
 
 ```bash
 systemctl daemon-reload
-systemctl restart ssh.service
+systemctl restart ssh.socket
 ```
 
 ### On the client

@@ -197,7 +197,7 @@ add_selected_apt_packages() {
 choose_tools_to_install() {
     tool_groups=(
         "Basic system tools (net-tools, gawk, uidmap)"
-        "Dotfiles essentials (git, vim, fish, tmux)"
+        "Dotfiles essentials (curl, git, vim, fish, tmux)"
         "Remote shell tools (mosh)"
         "Terminal UI tools (ncdu, htop)"
         "Search and JSON tools (fzf, bat, fd-find, ripgrep, jq)"
@@ -232,7 +232,7 @@ choose_tools_to_install() {
                 add_selected_apt_packages net-tools gawk uidmap
             ;;
             1)
-                add_selected_apt_packages git vim fish tmux
+                add_selected_apt_packages curl git vim fish tmux
             ;;
             2)
                 add_selected_apt_packages mosh
@@ -265,6 +265,10 @@ install_kubernetes_tools() {
     mkdir -p ~/.config/fish/completions
     ln -fs /opt/kubectx/completion/kubectx.fish ~/.config/fish/completions/
     ln -fs /opt/kubectx/completion/kubens.fish ~/.config/fish/completions/
+}
+
+install_fisher_plugins() {
+    fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
 }
 
 install_basic_packages() {
@@ -348,7 +352,7 @@ setup_dotfiles() {
     if [ ! -f "$HOME/.config/fish/functions/fisher.fish" ]; then
         if command -v fish &>/dev/null; then
             set -x
-            fish -c "curl -sL https://git.io/fisher | source && fisher update"
+            install_fisher_plugins
             { set +x; } 2>/dev/null
         else
             echo "Skipping fisher because fish is not installed."
@@ -407,6 +411,24 @@ fi
 
 ssh_config_file="/etc/ssh/sshd_config"
 
+restart_ssh_listener() {
+    # Ensure that we're not in WSL (Windows Subsystem for Linux)
+    if grep -qi Microsoft /proc/version; then
+        return 0
+    fi
+
+    systemctl daemon-reload
+
+    if systemctl list-unit-files --type=socket ssh.socket --no-legend 2>/dev/null | grep -q '^ssh.socket'; then
+        if systemctl is-active --quiet ssh.socket || systemctl is-enabled --quiet ssh.socket; then
+            systemctl restart ssh.socket || systemctl restart ssh.service
+            return
+        fi
+    fi
+
+    systemctl restart ssh.service
+}
+
 # Activate tmux autostart
 # Automatically start tmux or attach to the current session at login
 # SSH client has to pass the environment variable TMUX_AUTOSTART=true
@@ -446,11 +468,7 @@ EOL
         fi
     fi
 
-    # Ensure that we're not in WSL (Windows Subsystem for Linux)
-    if grep -vqi Microsoft /proc/version; then
-        systemctl daemon-reload
-        systemctl restart ssh.service
-    fi
+    restart_ssh_listener
 fi
 
 if [ "$REBOOT_AFTER_INSTALLATION" ]; then
