@@ -281,7 +281,7 @@ while true; do
         if ! is_excluded "$abs_path"; then
             size_kb=$(du -sk "$dir" 2>/dev/null | cut -f1)
             size_kb=${size_kb:-0}
-            if [[ "$size_kb" -ge 10240 ]]; then
+            if [[ "$size_kb" -ge 102400 ]]; then
                 size_human=$(du -sh "$dir" 2>/dev/null | cut -f1)
                 echo "$size_human $dirname/" >> "$list_file"
             fi
