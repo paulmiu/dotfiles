@@ -9,6 +9,18 @@ if [ $EUID != 0 ]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MULTISELECT_SCRIPT="$INSTALL_DIR/utils/multiselect.sh"
+
+if [ ! -f "$MULTISELECT_SCRIPT" ]; then
+    echo "Could not find multiselect helper at $MULTISELECT_SCRIPT" >&2
+    exit 1
+fi
+
+# shellcheck source=../utils/multiselect.sh disable=SC1091
+source "$MULTISELECT_SCRIPT"
+
 while [ $# -gt 0 ]; do
     case "$1" in
         -u|--admin-user)
@@ -178,8 +190,86 @@ else
     esac
 fi
 
+add_selected_apt_packages() {
+    SELECTED_APT_PACKAGES+=("$@")
+}
+
+choose_tools_to_install() {
+    tool_groups=(
+        "Basic system tools (net-tools, gawk, uidmap)"
+        "Dotfiles essentials (git, vim, fish, tmux)"
+        "Remote shell tools (mosh)"
+        "Terminal UI tools (ncdu, htop)"
+        "Search and JSON tools (fzf, bat, fd-find, ripgrep, jq)"
+        "Kubernetes tools (kubectx, kubens)"
+    )
+    # Used by multiselect through a nameref.
+    # shellcheck disable=SC2034
+    tool_group_defaults=(
+        "true"
+        "true"
+        "true"
+        "true"
+        "true"
+        "false"
+    )
+    selected_tool_groups=()
+
+    echo
+    echo "Choose which tool groups should be installed:"
+    multiselect "true" selected_tool_groups tool_groups tool_group_defaults </dev/tty
+
+    SELECTED_APT_PACKAGES=()
+    INSTALL_KUBERNETES_TOOLS=false
+
+    for idx in "${!tool_groups[@]}"; do
+        if [[ ${selected_tool_groups[idx]} != "true" ]]; then
+            continue
+        fi
+
+        case "$idx" in
+            0)
+                add_selected_apt_packages net-tools gawk uidmap
+            ;;
+            1)
+                add_selected_apt_packages git vim fish tmux
+            ;;
+            2)
+                add_selected_apt_packages mosh
+            ;;
+            3)
+                add_selected_apt_packages ncdu htop
+            ;;
+            4)
+                add_selected_apt_packages fzf bat fd-find ripgrep jq
+            ;;
+            5)
+                INSTALL_KUBERNETES_TOOLS=true
+            ;;
+        esac
+    done
+}
+
+install_kubernetes_tools() {
+    if ! command -v git &>/dev/null; then
+        echo "Skipping kubectx and kubens because git is not installed."
+        return 0
+    fi
+
+    if [ ! -d /opt/kubectx ]; then
+        git clone https://github.com/ahmetb/kubectx /opt/kubectx
+    fi
+
+    ln -fs /opt/kubectx/kubectx /usr/local/bin/kubectx
+    ln -fs /opt/kubectx/kubens /usr/local/bin/kubens
+    mkdir -p ~/.config/fish/completions
+    ln -fs /opt/kubectx/completion/kubectx.fish ~/.config/fish/completions/
+    ln -fs /opt/kubectx/completion/kubens.fish ~/.config/fish/completions/
+}
 
 install_basic_packages() {
+    choose_tools_to_install
+
     set -x
 
     export DEBIAN_FRONTEND=noninteractive
@@ -189,20 +279,13 @@ install_basic_packages() {
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef \
         -y --allow-downgrades --allow-remove-essential --allow-change-held-packages dist-upgrade
 
-    # Just to make sure that the very basics are installed
-    # net-tools        => netstat (network statistics)
-    apt-get install -y net-tools gawk uidmap
+    if [ ${#SELECTED_APT_PACKAGES[@]} -gt 0 ]; then
+        apt-get install -y "${SELECTED_APT_PACKAGES[@]}"
+    fi
 
-    # Install most used packages
-    apt-get install -y git vim fish tmux mosh ncdu htop fzf bat fd-find ripgrep jq
-
-    # Install kubectx
-    git clone https://github.com/ahmetb/kubectx /opt/kubectx
-    ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx
-    ln -s /opt/kubectx/kubens /usr/local/bin/kubens
-    mkdir -p ~/.config/fish/completions
-    ln -s /opt/kubectx/completion/kubectx.fish ~/.config/fish/completions/
-    ln -s /opt/kubectx/completion/kubens.fish ~/.config/fish/completions/
+    if [ "$INSTALL_KUBERNETES_TOOLS" == "true" ]; then
+        install_kubernetes_tools
+    fi
 
     # Install cockpit (https://cockpit-project.org/)
     # apt-get install -y cockpit
@@ -213,7 +296,12 @@ install_basic_packages() {
 }
 
 setup_dotfiles() {
-    cd "$HOME"
+    cd "$HOME" || return 1
+
+    if ! command -v git &>/dev/null; then
+        echo "Skipping dotfiles setup because git is not installed."
+        return 0
+    fi
 
     # Download and install dotfiles
     if [ ! -d "$HOME/.homesick/repos/homeshick" ]; then
@@ -235,24 +323,36 @@ setup_dotfiles() {
 
     # Install tmux plugin manager and tmux plugins
     if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
-        set -x
-        git clone https://github.com/tmux-plugins/tpm $HOME/.tmux/plugins/tpm
-        tmux new-session -s "$USER" -d "$HOME/.tmux/plugins/tpm/tpm && $HOME/.tmux/plugins/tpm/scripts/install_plugins.sh"
-        { set +x; } 2>/dev/null
+        if command -v tmux &>/dev/null; then
+            set -x
+            git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
+            tmux new-session -s "$USER" -d "$HOME/.tmux/plugins/tpm/tpm && $HOME/.tmux/plugins/tpm/scripts/install_plugins.sh"
+            { set +x; } 2>/dev/null
+        else
+            echo "Skipping tmux plugins because tmux is not installed."
+        fi
     fi
 
     # Install vim plugins
     if [ ! -d "$HOME/.vim/bundle" ]; then
-        set -x
-        vim +PluginInstall +qall &>/dev/null
-        { set +x; } 2>/dev/null
+        if command -v vim &>/dev/null; then
+            set -x
+            vim +PluginInstall +qall &>/dev/null
+            { set +x; } 2>/dev/null
+        else
+            echo "Skipping Vim plugins because Vim is not installed."
+        fi
     fi
 
     # Install fisher - a package manager for the fish shell
     if [ ! -f "$HOME/.config/fish/functions/fisher.fish" ]; then
-        set -x
-        fish -c "curl -sL https://git.io/fisher | source && fisher update"
-        { set +x; } 2>/dev/null
+        if command -v fish &>/dev/null; then
+            set -x
+            fish -c "curl -sL https://git.io/fisher | source && fisher update"
+            { set +x; } 2>/dev/null
+        else
+            echo "Skipping fisher because fish is not installed."
+        fi
     fi
 
     # Generate ssh key pair
@@ -282,18 +382,27 @@ install_basic_packages
 setup_dotfiles
 
 # Make fish the default shell for the current user
-if ! grep -Fxq "$(which fish)" /etc/shells; then
-    echo $(which fish) >> /etc/shells
+if command -v fish &>/dev/null; then
+    fish_path="$(command -v fish)"
+    if ! grep -Fxq "$fish_path" /etc/shells; then
+        echo "$fish_path" >> /etc/shells
+    fi
+    chsh -s "$fish_path"
+else
+    echo "Skipping fish as default shell because fish is not installed."
 fi
-chsh -s $(which fish)
 
 if [ "$ADMIN_USER" ]; then
-    sudo -u $ADMIN_USER /usr/bin/env bash -c "$(declare -f setup_dotfiles); ADMIN_USER='$ADMIN_USER'; PUBLIC_SSH_KEY='$PUBLIC_SSH_KEY'; setup_dotfiles"
+    sudo -u "$ADMIN_USER" /usr/bin/env bash -c "$(declare -f setup_dotfiles); ADMIN_USER='$ADMIN_USER'; PUBLIC_SSH_KEY='$PUBLIC_SSH_KEY'; setup_dotfiles"
 
     # Make fish the default shell
-    set -x
-    chsh -s $(which fish) $ADMIN_USER
-    { set +x; } 2>/dev/null
+    if command -v fish &>/dev/null; then
+        set -x
+        chsh -s "$fish_path" "$ADMIN_USER"
+        { set +x; } 2>/dev/null
+    else
+        echo "Skipping fish as default shell for $ADMIN_USER because fish is not installed."
+    fi
 fi
 
 ssh_config_file="/etc/ssh/sshd_config"
