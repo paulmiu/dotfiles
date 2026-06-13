@@ -64,60 +64,25 @@ function abbreviations
       abbr --add --global dcl 'docker compose logs'
       abbr --add --global dclf 'docker compose logs -f'
       abbr --add --global dcrm 'docker compose rm'
-      abbr --add --global k 'kubectl'
-      abbr --add --global kc 'kubectl create -n'
-      abbr --add --global kcn 'kubectl create namespace'
-      abbr --add --global kcd 'kubectl create deploy -n'
-      abbr --add --global kd 'kubectl delete -n'
-      abbr --add --global kdn 'kubectl delete namespace'
-      abbr --add --global kdd 'kubectl delete deploy -n'
-      abbr --add --global ka 'kubectl apply -f'
-      abbr --add --global kg 'kubectl get -n'
-      abbr --add --global kga 'kubectl get all -A'
-      abbr --add --global ks 'kubectl -n kube-system'
-      abbr --add --global ksa 'kubectl -n kube-system get all'
-      abbr --add --global ksp 'kubectl -n kube-system get pods'
-      abbr --add --global ksl 'kubectl -n kube-system logs'
-      abbr --add --global kcg 'kubectl config get-contexts'
-      abbr --add --global kcc 'kubectl config current-context'
-      abbr --add --global kcu 'kubectl config use-context'
-      abbr --add --global kx "kubectx"
-      abbr --add --global kn "kubens"
-      abbr --add --global kh "kubectl-helper"
-      abbr --add --global khs "kubectl-helper sn"
-      abbr --add --global kha "kubectl-helper get all"
-      abbr --add --global khp "kubectl-helper get pods"
-      abbr --add --global khan "kubectl-helper get all -o name"
-      abbr --add --global khpn "kubectl-helper get pods -o name"
-      abbr --add --global khl "kubectl-helper logs -f"
-      abbr --add --global khe "kubectl-helper exec -it"
-      abbr --add --global kher "kubectl-helper k3s-exec-as-root"
-      abbr --add --global khv "kubectl-helper vim"
-      abbr --add --global khd "kubectl-helper debug"
-      abbr --add --global kdnf "kube-delete-ns"
-      abbr --add --global hga "helm get all"
-      abbr --add --global hgh "helm get hooks"
-      abbr --add --global hgm "helm get manifest"
-      abbr --add --global hgn "helm get notes"
-      abbr --add --global hgv "helm get values"
-      abbr --add --global hh "helm history --namespace"
-      abbr --add --global hi "helm install --namespace"
-      abbr --add --global hl "helm list --namespace"
-      abbr --add --global hp "helm pull"
-      abbr --add --global hra "helm repo add"
-      abbr --add --global hrl "helm repo list"
-      abbr --add --global hrr "helm repo remove"
-      abbr --add --global hru "helm repo update"
-      abbr --add --global hrb "helm rollback"
-      abbr --add --global hseh "helm search hub"
-      abbr --add --global hser "helm search repo"
-      abbr --add --global hsha "helm show all"
-      abbr --add --global hshc "helm show chart"
-      abbr --add --global hshr "helm show readme"
-      abbr --add --global hshv "helm show values"
-      abbr --add --global hs "helm status"
-      abbr --add --global ht "helm template"
-      abbr --add --global hu "helm uninstall"
-      abbr --add --global hug "helm upgrade"
+      abbr --add --global np 'npm'
+      abbr --add --global npi 'npm install'
+      abbr --add --global npci 'npm ci'
+      abbr --add --global npa 'npm install --save-dev'
+      abbr --add --global npg 'npm install -g'
+      abbr --add --global npun 'npm uninstall'
+      abbr --add --global npr 'npm run'
+      abbr --add --global npd 'npm run dev'
+      abbr --add --global nps 'npm start'
+      abbr --add --global npb 'npm run build'
+      abbr --add --global npp 'npm run preview'
+      abbr --add --global npf 'npm run format'
+      abbr --add --global npl 'npm run lint'
+      abbr --add --global npt 'npm test'
+      abbr --add --global npin 'npm init'
+      abbr --add --global npo 'npm outdated'
+      abbr --add --global npu 'npm update'
+      abbr --add --global nppb 'npm publish'
+      abbr --add --global npls 'npm list'
+      abbr --add --global npx 'npx'
   end
 end
