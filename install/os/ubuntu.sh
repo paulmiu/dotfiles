@@ -314,6 +314,57 @@ install_fisher_plugins() {
     fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher && fisher update"
 }
 
+install_vim_plugins() {
+    local vim_plugin_marker
+    local vim_plugin_status
+    local -a vim_plugin_command
+
+    if ! command -v vim &>/dev/null; then
+        echo "Skipping Vim plugins because Vim is not installed."
+        return 0
+    fi
+
+    if ! command -v git &>/dev/null; then
+        echo "Skipping Vim plugins because git is not installed."
+        return 0
+    fi
+
+    vim_plugin_marker="$HOME/.vim/bundle/.dotfiles_plugins_installed"
+    if [ -f "$vim_plugin_marker" ]; then
+        return 0
+    fi
+
+    mkdir -p "$HOME/.vim/bundle"
+
+    if [ ! -f "$HOME/.vim/bundle/vundle/autoload/vundle.vim" ]; then
+        rm -rf "$HOME/.vim/bundle/vundle"
+        if ! git clone https://github.com/VundleVim/Vundle.vim.git "$HOME/.vim/bundle/vundle"; then
+            echo "Skipping Vim plugins because Vundle could not be installed."
+            return 0
+        fi
+    fi
+
+    echo "Installing Vim plugins with a 10 minute timeout..."
+    vim_plugin_command=(vim -n -es -i NONE -u "$HOME/.vimrc" -c "set nomore" -c "PluginInstall" -c "qall")
+
+    if command -v timeout &>/dev/null; then
+        timeout --foreground 10m "${vim_plugin_command[@]}" </dev/null &>/dev/null
+        vim_plugin_status=$?
+        if (( vim_plugin_status == 124 )); then
+            echo "Skipping remaining Vim plugin setup because it timed out."
+            return 0
+        elif (( vim_plugin_status != 0 )); then
+            echo "Skipping remaining Vim plugin setup because PluginInstall failed."
+            return 0
+        fi
+    elif ! "${vim_plugin_command[@]}" </dev/null &>/dev/null; then
+        echo "Skipping remaining Vim plugin setup because PluginInstall failed."
+        return 0
+    fi
+
+    touch "$vim_plugin_marker"
+}
+
 install_basic_packages() {
     choose_tools_to_install
 
@@ -385,15 +436,9 @@ setup_dotfiles() {
     fi
 
     # Install vim plugins
-    if [ ! -d "$HOME/.vim/bundle" ]; then
-        if command -v vim &>/dev/null; then
-            set -x
-            vim +PluginInstall +qall &>/dev/null
-            { set +x; } 2>/dev/null
-        else
-            echo "Skipping Vim plugins because Vim is not installed."
-        fi
-    fi
+    set -x
+    install_vim_plugins
+    { set +x; } 2>/dev/null
 
     # Install fisher - a package manager for the fish shell
     if [ ! -f "$HOME/.config/fish/functions/fisher.fish" ]; then
@@ -444,7 +489,11 @@ else
 fi
 
 if [ "$ADMIN_USER" ]; then
-    sudo -u "$ADMIN_USER" /usr/bin/env bash -c "$(declare -f setup_dotfiles); ADMIN_USER='$ADMIN_USER'; PUBLIC_SSH_KEY='$PUBLIC_SSH_KEY'; setup_dotfiles"
+    setup_dotfiles_script="$(declare -f install_fisher_plugins install_vim_plugins setup_dotfiles); setup_dotfiles"
+    sudo -u "$ADMIN_USER" /usr/bin/env \
+        "ADMIN_USER=$ADMIN_USER" \
+        "PUBLIC_SSH_KEY=$PUBLIC_SSH_KEY" \
+        bash -c "$setup_dotfiles_script"
 
     # Make fish the default shell
     if command -v fish &>/dev/null; then

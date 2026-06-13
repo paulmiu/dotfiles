@@ -6,74 +6,56 @@
 set nocompatible
 
 " Setting up Vundle - the vim plugin bundler
-let iCanHazVundle=1
-let vundle_readme=expand('~/.vim/bundle/vundle/README.md')
-if !filereadable(vundle_readme)
-    echo "Installing Vundle..."
-    echo ""
-    silent !mkdir -p ~/.vim/bundle
-    silent !git clone https://github.com/gmarik/vundle ~/.vim/bundle/vundle
-    let iCanHazVundle=0
-endif
+let s:vundle_autoload=expand('~/.vim/bundle/vundle/autoload/vundle.vim')
+if filereadable(s:vundle_autoload)
+    filetype off
 
-filetype off
+    set rtp+=~/.vim/bundle/vundle/
+    call vundle#rc()
 
-set rtp+=~/.vim/bundle/vundle/
-call vundle#rc()
+    " let Vundle manage Vundle
+    Bundle 'VundleVim/Vundle.vim'
 
-" let Vundle manage Vundle
-Bundle 'gmarik/vundle'
+    " ============================================================================
+    " Active plugins
+    " You can disable or add new ones here:
 
-" ============================================================================
-" Active plugins
-" You can disable or add new ones here:
-
-" Better file browser
-Bundle 'scrooloose/nerdtree'
-" Vim NERDTree Tabs
-Bundle 'jistr/vim-nerdtree-tabs'
-" Code commenter
-Bundle 'scrooloose/nerdcommenter'
-" Code and files fuzzy finder
-Bundle 'ctrlpvim/ctrlp.vim'
-" Git integration
-Bundle 'tpope/vim-fugitive'
-" A Vim plugin which shows a git diff in the gutter (sign column)
-Bundle 'airblade/vim-gitgutter'
-" Airline
-Bundle 'vim-airline/vim-airline'
-" Airline Themes
-Bundle 'vim-airline/vim-airline-themes'
-" Terminal Vim with 256 colors colorscheme
-Bundle 'fisadev/fisa-vim-colorscheme'
-" Surround
-Bundle 'tpope/vim-surround'
-" auto-pairs
-Bundle 'jiangmiao/auto-pairs'
-" highlight intendation
-Bundle 'nathanaelkane/vim-indent-guides'
-" Window chooser
-Bundle 't9md/vim-choosewin'
-" zoom panes
-Bundle 'regedarek/ZoomWin'
-" python virtualenv integration
-Bundle 'jmcantrell/vim-virtualenv'
-" Search results counter
-Bundle 'IndexedSearch'
-" XML/HTML tags navigation
-Bundle 'matchit.zip'
-" Yank history navigation
-Bundle 'YankRing.vim'
-
-
-" ============================================================================
-" Install plugins the first time vim runs
-
-if iCanHazVundle == 0
-    echo "Installing Bundles, please ignore key map error messages"
-    echo ""
-    exec "BundleInstall"
-    exec "qall"
+    " Better file browser
+    Bundle 'scrooloose/nerdtree'
+    " Vim NERDTree Tabs
+    Bundle 'jistr/vim-nerdtree-tabs'
+    " Code commenter
+    Bundle 'scrooloose/nerdcommenter'
+    " Code and files fuzzy finder
+    Bundle 'ctrlpvim/ctrlp.vim'
+    " Git integration
+    Bundle 'tpope/vim-fugitive'
+    " A Vim plugin which shows a git diff in the gutter (sign column)
+    Bundle 'airblade/vim-gitgutter'
+    " Airline
+    Bundle 'vim-airline/vim-airline'
+    " Airline Themes
+    Bundle 'vim-airline/vim-airline-themes'
+    " Terminal Vim with 256 colors colorscheme
+    Bundle 'fisadev/fisa-vim-colorscheme'
+    " Surround
+    Bundle 'tpope/vim-surround'
+    " auto-pairs
+    Bundle 'jiangmiao/auto-pairs'
+    " highlight intendation
+    Bundle 'nathanaelkane/vim-indent-guides'
+    " Window chooser
+    Bundle 't9md/vim-choosewin'
+    " zoom panes
+    Bundle 'regedarek/ZoomWin'
+    " python virtualenv integration
+    Bundle 'jmcantrell/vim-virtualenv'
+    " Search results counter
+    Bundle 'IndexedSearch'
+    " XML/HTML tags navigation
+    Bundle 'matchit.zip'
+    " Yank history navigation
+    Bundle 'YankRing.vim'
 endif
 
 " ============================================================================
