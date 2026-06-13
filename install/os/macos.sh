@@ -59,7 +59,7 @@ done < <( dscl . list /Users | grep -v '^_' )
 if [ "$TARGET_USER" ] && [[ ! " ${all_users[@]} " =~ " ${TARGET_USER} " ]]; then
     echo "Could not find the specified user $TARGET_USER on this system."
 
-    read -p "Do you want to install ${bold_start}mamiu/dotfiles${bold_end} for another user? [${bold_start}Y${bold_end}/n] " install_for_other_user </dev/tty
+    read -p "Do you want to install ${bold_start}paulmiu/dotfiles${bold_end} for another user? [${bold_start}Y${bold_end}/n] " install_for_other_user </dev/tty
     [ -z "$install_for_other_user" ] && install_for_other_user="y"
     case "${install_for_other_user:0:1}" in
         y|Y )
@@ -115,7 +115,7 @@ if [ -z "$TARGET_USER" ] || [ "$install_for_other_user" == "true" ]; then
 fi
 
 # Confirm if dotfiles should be installed in TARGET_USER account
-read -p "Do you really want to install ${bold_start}mamiu/dotfiles${bold_end} for the user ${bold_start}${TARGET_USER}${bold_end}? [${bold_start}Y${bold_end}/n] " installation_confirmation </dev/tty
+read -p "Do you really want to install ${bold_start}paulmiu/dotfiles${bold_end} for the user ${bold_start}${TARGET_USER}${bold_end}? [${bold_start}Y${bold_end}/n] " installation_confirmation </dev/tty
 [ -z "$installation_confirmation" ] && installation_confirmation="y"
 case "${installation_confirmation:0:1}" in
     y|Y )
@@ -151,7 +151,7 @@ fi
 # Install brew packages
 # GNU utils (minimum requirements)
 sudo -Hu $TARGET_USER brew install coreutils binutils diffutils findutils gnu-getopt gawk gnutls grep gnu-sed gnu-tar gzip gnu-indent gnu-which gnu-time less python bash openssh p7zip rsync wget netcat wdiff unzip watch
-# dependencies for the full experience of the mamiu dotfiles setup (highly recommended)
+# dependencies for the full experience of the paulmiu dotfiles setup (highly recommended)
 sudo -Hu $TARGET_USER brew install mosh git fish tmux vim fzf bat fd ripgrep jq gpg nmap reattach-to-user-namespace shellcheck shfmt
 # TUI tools (cli tools that provide a terminal or text-based user interface) (recommended)
 sudo -Hu $TARGET_USER brew install ncdu htop nnn tig
@@ -187,7 +187,7 @@ if [ -d "$TARGET_USER_HOME/.homesick/repos/dotfiles" ]; then
     echo "Dotfiles installation is cancelled."
     exit 1
 fi
-sudo -Hu $TARGET_USER "$TARGET_USER_HOME/.homesick/repos/homeshick/bin/homeshick" clone -b mamiu/dotfiles
+sudo -Hu $TARGET_USER "$TARGET_USER_HOME/.homesick/repos/homeshick/bin/homeshick" clone -b paulmiu/dotfiles
 sudo -Hu $TARGET_USER "$TARGET_USER_HOME/.homesick/repos/homeshick/bin/homeshick" link -f dotfiles
 
 # Backup property list files in case they exist and copy the new files to the app preferences folder
@@ -260,6 +260,6 @@ echo "All dependencies are installed successfully."
 echo
 echo "Now you can install the mac apps of your choise."
 echo "The browser will automatically open at step 16 of this guide:"
-echo "https://github.com/mamiu/dotfiles/blob/master/install/os/macos.md"
+echo "https://github.com/paulmiu/dotfiles/blob/master/install/os/macos.md"
 
-sudo -Hu $TARGET_USER open "https://github.com/mamiu/dotfiles/blob/master/install/os/macos.md#16-install-mac-apps-only-the-ones-you-really-need"
+sudo -Hu $TARGET_USER open "https://github.com/paulmiu/dotfiles/blob/master/install/os/macos.md#16-install-mac-apps-only-the-ones-you-really-need"

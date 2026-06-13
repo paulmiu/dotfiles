@@ -52,7 +52,7 @@ sudo sed -i '' '1s/^/\/usr\/local\/gnubin\'$'\n/' /etc/paths
 
 ```bash
 git clone https://github.com/andsens/homeshick.git $HOME/.homesick/repos/homeshick
-$HOME/.homesick/repos/homeshick/bin/homeshick clone -b mamiu/dotfiles
+$HOME/.homesick/repos/homeshick/bin/homeshick clone -b paulmiu/dotfiles
 ```
 
 ## 7. Backup property list files in case they exist

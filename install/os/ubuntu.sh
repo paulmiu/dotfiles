@@ -151,7 +151,7 @@ else
                 echo "Couldn't find user accounts. Therefore creating a new one."
                 create_admin_user
             else
-                echo "For which user do you want to install the ${bold_start}mamiu/dotfiles${bold_end}:"
+                echo "For which user do you want to install the ${bold_start}paulmiu/dotfiles${bold_end}:"
 
                 user_options=('Create new admin user')
                 user_options+=("${human_users[@]}")
@@ -228,7 +228,7 @@ setup_dotfiles() {
         return 1
     else
         set -x
-        "$HOME/.homesick/repos/homeshick/bin/homeshick" clone -b mamiu/dotfiles
+        "$HOME/.homesick/repos/homeshick/bin/homeshick" clone -b paulmiu/dotfiles
         "$HOME/.homesick/repos/homeshick/bin/homeshick" link -f dotfiles
         { set +x; } 2>/dev/null
     fi

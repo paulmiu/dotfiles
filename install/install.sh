@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# MAMIU/DOTFILES SETUP SCRIPT
+# PAULMIU/DOTFILES SETUP SCRIPT
 
 # Log file path of the setup scripts
-INSTALLATION_LOG_FILE="/mamiu_dotfiles_setup.log"
+INSTALLATION_LOG_FILE="/paulmiu_dotfiles_setup.log"
 
 # helper variables to make text bold
 bold_start=$(tput bold)
@@ -338,7 +338,7 @@ call_installation_script()
         $run_as_root "$install_script" "${params[@]}" 2>&1 | $run_as_root tee $INSTALLATION_LOG_FILE
         return_value="$?"
     else
-        curl -sL "https://raw.githubusercontent.com/mamiu/dotfiles/master/install/os/${target_os}.sh" -o "./${target_os}.sh"
+        curl -sL "https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/os/${target_os}.sh" -o "./${target_os}.sh"
         chmod +x "./${target_os}.sh"
         # To get a colored output unbuffer the following command like so: https://superuser.com/a/751809/325412
         $run_as_root "./$target_os.sh" "${params[@]}" 2>&1 | $run_as_root tee $INSTALLATION_LOG_FILE
@@ -348,11 +348,11 @@ call_installation_script()
 
     if (( return_value == 0 )); then
         echo
-        echo "########## ${bold_start}MAMIU/DOTFILES${bold_end} WAS INSTALLED SUCCESSFULLY ##########"
+        echo "########## ${bold_start}PAULMIU/DOTFILES${bold_end} WAS INSTALLED SUCCESSFULLY ##########"
         exit_program 0
     else
         echo
-        echo "########## !!! ${bold_start}MAMIU/DOTFILES${bold_end} WAS NOT INSTALLED !!! ##########"
+        echo "########## !!! ${bold_start}PAULMIU/DOTFILES${bold_end} WAS NOT INSTALLED !!! ##########"
         exit_program 1
     fi
 }
@@ -470,7 +470,7 @@ setup_remote_host()
     echo "username: $install_user"
     echo "hostname: $hostname"
 
-    params=("curl -sL https://raw.githubusercontent.com/mamiu/dotfiles/master/install/install.sh | bash -s --")
+    params=("curl -sL https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/install.sh | bash -s --")
     params+=("--local")
     params+=("--no-greeting")
     params+=("--nickname=$nickname")
@@ -595,7 +595,7 @@ done
 
 if [ -z "$NO_GREETING" ]; then
     echo
-    echo "Welcome to the ${bold_start}mamiu/dotfiles${bold_end} setup script!"
+    echo "Welcome to the ${bold_start}paulmiu/dotfiles${bold_end} setup script!"
 fi
 
 if [ -z "$INSTALLATION_TARGET" ]; then

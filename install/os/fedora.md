@@ -29,7 +29,7 @@ dnf install git vim tmux fish
 
 ```bash
 git clone https://github.com/andsens/homeshick.git $HOME/.homesick/repos/homeshick
-$HOME/.homesick/repos/homeshick/bin/homeshick clone mamiu/dotfiles
+$HOME/.homesick/repos/homeshick/bin/homeshick clone paulmiu/dotfiles
 ```
 
 ### STEP 5: Login to your admins user account
@@ -49,7 +49,7 @@ git config --global user.email "<EMAIL_ADDRESS>"
 
 ```bash
 git clone https://github.com/andsens/homeshick.git $HOME/.homesick/repos/homeshick
-$HOME/.homesick/repos/homeshick/bin/homeshick clone mamiu/dotfiles
+$HOME/.homesick/repos/homeshick/bin/homeshick clone paulmiu/dotfiles
 ```
 
 ## On the client
