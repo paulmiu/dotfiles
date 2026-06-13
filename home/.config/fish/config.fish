@@ -3,7 +3,10 @@ set -x LC_ALL en_US.UTF-8
 set -x LANG en_US.UTF-8
 set -x TERM xterm-256color
 set -x EDITOR vim
-set -x GPG_TTY (tty)
+set -l __gpg_tty (tty 2>/dev/null)
+if test $status -eq 0
+    set -x GPG_TTY $__gpg_tty
+end
 set -x XDG_CONFIG_HOME $HOME/.config
 set -x XDG_CACHE_HOME $HOME/.cache
 set -x XDG_DATA_HOME $HOME/.local/share
@@ -27,14 +30,24 @@ end
 abbreviations
 
 # IMPORT FISH SCRIPTS
-source $HOME/.homesick/repos/homeshick/homeshick.fish
-source $HOME/.homesick/repos/homeshick/completions/homeshick.fish
+if test -f $HOME/.homesick/repos/homeshick/homeshick.fish
+    source $HOME/.homesick/repos/homeshick/homeshick.fish
+end
+if test -f $HOME/.homesick/repos/homeshick/completions/homeshick.fish
+    source $HOME/.homesick/repos/homeshick/completions/homeshick.fish
+end
 if test -f $HOME/bin/google-cloud-sdk/path.fish.inc
     source $HOME/bin/google-cloud-sdk/path.fish.inc
 end
-source "$HOME/.cargo/env.fish"
-source "$HOME/.deno/env.fish"
-pyenv init - fish | source
+if test -f "$HOME/.cargo/env.fish"
+    source "$HOME/.cargo/env.fish"
+end
+if test -f "$HOME/.deno/env.fish"
+    source "$HOME/.deno/env.fish"
+end
+if type -q pyenv
+    pyenv init - fish | source
+end
 
 # CHECK IF BAT IS INSTALLED (CAT ALTERNATIVE)
 if type -q bat
@@ -44,7 +57,7 @@ else if type -q batcat
     alias bat=batcat
 end
 # SET BAT AS PAGER (IF IT'S INSTALLED)
-if type -q $__BAT_CMD
+if set -q __BAT_CMD; and type -q $__BAT_CMD
     set -x PAGER "$__BAT_CMD -p"
     set -x MANPAGER "sh -c 'col -bx | $__BAT_CMD -l man --style=plain,numbers'"
     set -x MANROFFOPT "-c"

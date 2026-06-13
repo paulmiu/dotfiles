@@ -18,7 +18,7 @@ function fzf_commands
         set -l FZF_FIND_EXCLUDES $FZF_FIND_EXCLUDES "-not \( -ipath '*/"$FZF_EXCLUDED_DIRS"' -prune \)" # and this directory exclude pattern is needed when searching for folders
         set -gx FZF_FIND_EXCLUDES $FZF_FIND_EXCLUDES "-not -iname '"$FZF_EXCLUDED_FILES"'"
 
-        if type -q $__FD_CMD
+        if set -q __FD_CMD; and type -q $__FD_CMD
             set -gx FZF_DEFAULT_COMMAND "$__FD_CMD --hidden --follow --type file $FZF_FD_EXCLUDES"
         else
             set -gx FZF_DEFAULT_COMMAND "bash -c \"find * -type f,l $FZF_FIND_EXCLUDES\""
@@ -37,7 +37,7 @@ function fzf_commands
                 set -l fzf_params $fzf_params "--bind=tab:toggle+down+clear-query"
                 set -l fzf_params $fzf_params "--prompt=██ "
                 set -l fzf_params $fzf_params "--color=prompt:#dddddd,bg:#282828"
-                if type -q $__BAT_CMD
+                if set -q __BAT_CMD; and type -q $__BAT_CMD
                     set fzf_params $fzf_params "--preview=$__BAT_CMD --style=numbers --color=always {} | head -500"
                 end
                 command vim (fzf $fzf_params)
@@ -76,7 +76,7 @@ function fzf_commands
             set -l FISH_MAJOR (echo $version | cut -f1 -d.)
             set -l FISH_MINOR (echo $version | cut -f2 -d.)
 
-            if type -q $__BAT_CMD
+            if set -q __BAT_CMD; and type -q $__BAT_CMD
                 and test "$CTRL_R_ENABLE_COLORS" = "true"
                 builtin history -z |
                 awk -v ORS='⏎ ' '1' |
@@ -101,7 +101,7 @@ function fzf_commands
         set -l fzf_query $commandline[2]
 
         if not set -q FZF_ALT_C_COMMAND -a "$mode" != "navigate-up"
-            if type -q $__FD_CMD
+            if set -q __FD_CMD; and type -q $__FD_CMD
                 set FZF_ALT_C_COMMAND "$__FD_CMD -H -t d $FZF_FD_EXCLUDES 2>/dev/null"
             else
                 set FZF_ALT_C_COMMAND "find . -mindepth 1 -type d $FZF_FIND_EXCLUDES 2>/dev/null"

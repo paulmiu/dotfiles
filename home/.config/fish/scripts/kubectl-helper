@@ -107,7 +107,7 @@ function kubectl-helper
 
         case "logs"
             set -l KUBE_SELECTED_POD (__select_pod)
-            if type -q $__BAT_CMD
+            if set -q __BAT_CMD; and type -q $__BAT_CMD
                 set logs_pager "$__BAT_CMD -l log --style numbers"
             else
                 set logs_pager "less"
