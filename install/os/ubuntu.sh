@@ -12,14 +12,26 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MULTISELECT_SCRIPT="$INSTALL_DIR/utils/multiselect.sh"
+MULTISELECT_URL="https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/utils/multiselect.sh"
 
-if [ ! -f "$MULTISELECT_SCRIPT" ]; then
-    echo "Could not find multiselect helper at $MULTISELECT_SCRIPT" >&2
+if [ -f "$MULTISELECT_SCRIPT" ]; then
+    # shellcheck source=../utils/multiselect.sh disable=SC1091
+    source "$MULTISELECT_SCRIPT"
+elif command -v curl &>/dev/null; then
+    MULTISELECT_TMP="$(mktemp)"
+    if curl -fsSL "$MULTISELECT_URL" -o "$MULTISELECT_TMP"; then
+        # shellcheck source=/dev/null
+        source "$MULTISELECT_TMP"
+        rm -f "$MULTISELECT_TMP"
+    else
+        rm -f "$MULTISELECT_TMP"
+        echo "Could not download multiselect helper from $MULTISELECT_URL" >&2
+        exit 1
+    fi
+else
+    echo "Could not find multiselect helper at $MULTISELECT_SCRIPT and curl is not installed." >&2
     exit 1
 fi
-
-# shellcheck source=../utils/multiselect.sh disable=SC1091
-source "$MULTISELECT_SCRIPT"
 
 while [ $# -gt 0 ]; do
     case "$1" in

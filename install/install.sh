@@ -336,13 +336,13 @@ call_installation_script()
     if [ -f "$install_script" ]; then
         # To get a colored output unbuffer the following command like so: https://superuser.com/a/751809/325412
         $run_as_root "$install_script" "${params[@]}" 2>&1 | $run_as_root tee $INSTALLATION_LOG_FILE
-        return_value="$?"
+        return_value="${PIPESTATUS[0]}"
     else
         curl -sL "https://raw.githubusercontent.com/paulmiu/dotfiles/master/install/os/${target_os}.sh" -o "./${target_os}.sh"
         chmod +x "./${target_os}.sh"
         # To get a colored output unbuffer the following command like so: https://superuser.com/a/751809/325412
         $run_as_root "./$target_os.sh" "${params[@]}" 2>&1 | $run_as_root tee $INSTALLATION_LOG_FILE
-        return_value="$?"
+        return_value="${PIPESTATUS[0]}"
         rm -f "./${target_os}.sh"
     fi
 
