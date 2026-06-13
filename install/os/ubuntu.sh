@@ -551,20 +551,14 @@ if [ "$NEW_SSH_PORT" ]; then
 
     ssh_socket_file="/etc/systemd/system/ssh.socket.d/listen.conf"
 
-    if [[ ! -e "$ssh_socket_file" ]]; then
-        mkdir -p "/etc/systemd/system/ssh.socket.d/"
-        cat > "$ssh_socket_file" <<EOL
+    mkdir -p "/etc/systemd/system/ssh.socket.d/"
+    cat > "$ssh_socket_file" <<EOL
 [Socket]
 ListenStream=
-ListenStream=$NEW_SSH_PORT
+ListenStream=0.0.0.0:$NEW_SSH_PORT
+BindIPv6Only=ipv6-only
+ListenStream=[::]:$NEW_SSH_PORT
 EOL
-    else
-        if grep -E "^ListenStream=[1-9][0-9]{0,4}" "$ssh_socket_file"; then
-            sed -i -E "s/^ListenStream=[1-9][0-9]{0,4}/ListenStream=$NEW_SSH_PORT/" "$ssh_socket_file"
-        else
-            echo -e "ListenStream=\nListenStream=$NEW_SSH_PORT" >> "$ssh_socket_file"
-        fi
-    fi
 
     restart_ssh_listener
 fi
