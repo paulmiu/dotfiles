@@ -2,6 +2,24 @@
 
 Personal shell, editor and terminal configuration, stored in a Homeshick-compatible checkout under `~/.homesick/repos/dotfiles`.
 
+## Quick installation
+
+The short URL supports the interactive installer:
+
+```bash
+curl -fsSL https://install.miu.io | bash
+```
+
+If you are already logged into the machine you want to configure, select local installation explicitly. For example, on a Debian 13 or newer VPS:
+
+```bash
+curl -fsSL https://install.miu.io | bash -s -- --local --admin-user=paul
+```
+
+Replace `paul` with the account that should receive the dotfiles. An existing account is reused; a missing Linux account is created interactively. Run as root or with sudo access on Linux. Add `--dry-run` to the Bash arguments to preview the plan.
+
+These commands execute the downloaded script immediately. To inspect it first, use the download-first instructions under [Standalone bootstrap](#standalone-bootstrap).
+
 ## Install from a checkout
 
 ```bash
