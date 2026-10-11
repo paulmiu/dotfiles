@@ -181,6 +181,21 @@ class MacOSTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
 
+class SelectionTests(unittest.TestCase):
+    def test_legacy_helper_rejects_variable_name_injection(self):
+        result = bash('source install/utils/multiselect.sh; multiselect true "$1" options', 'result[$(exit 42)]')
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_selection_toggles_without_eval_or_terminal_control(self):
+        if bash('(( BASH_VERSINFO[0] >= 4 ))').returncode:
+            self.skipTest('Nameref compatibility helper requires Bash 4.3+')
+        result = bash('source install/utils/multiselect.sh; options=(one two); defaults=(true false); '
+                      'multiselect false result options defaults <<< $\'1 2\\n\\n\'; '
+                      'printf "RESULT:%s" "${result[*]}"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('RESULT:false true', result.stdout)
+
+
 class UserFilesTests(unittest.TestCase):
     def test_conflicting_dotfiles_are_backed_up_and_reruns_preserve_backup(self):
         with tempfile.TemporaryDirectory() as directory:

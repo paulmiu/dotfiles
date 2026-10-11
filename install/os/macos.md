@@ -27,3 +27,14 @@ An unattended first Homebrew installation needs an existing sudo credential or s
 - `--admin-user` may name only the current account. Server-specific SSH-port, hostname, upgrade and reboot options are rejected.
 
 Dependencies are fetched over HTTPS. The Homebrew bootstrap and initial plugin-manager checkouts use pinned upstream commits; package versions and plugins selected by your configuration follow their upstream sources. Review/update those pins deliberately when maintaining the installer.
+
+## Preference archives
+
+The standalone `defaults-export` and `defaults-import` helpers require Python 3. Export creates a new ZIP in your home directory (or at a supplied path) and refuses to overwrite an existing backup. Import validates every archive member and plist before writing, backs up affected domains, and attempts to restore them if an import fails. It never extracts archive paths or deletes a fixed working directory.
+
+```bash
+bash install/os/resources/macos/scripts/defaults-export ~/my-preferences.zip
+bash install/os/resources/macos/scripts/defaults-import ~/my-preferences.zip
+```
+
+Only the current account's preferences are handled by default. `--include-root` additionally handles root's preferences through sudo. The `global/` directory in legacy archives refers to root's domains, not machine-wide settings.

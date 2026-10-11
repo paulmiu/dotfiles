@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 export PYTHONDONTWRITEBYTECODE=1
-files=(install/install.sh install/lib/*.sh install/os/*.sh install/os/resources/macos/scripts/symlink-gnubin-brew-packages install/tests/*.sh)
+files=(install/install.sh install/lib/*.sh install/os/*.sh install/utils/*.sh install/os/resources/macos/scripts/defaults-import install/os/resources/macos/scripts/defaults-export install/os/resources/macos/scripts/symlink-gnubin-brew-packages install/tests/*.sh)
 for file in "${files[@]}"; do bash -n "$file"; done
 shellcheck "${files[@]}"
 shfmt -d -i 4 -ci "${files[@]}"

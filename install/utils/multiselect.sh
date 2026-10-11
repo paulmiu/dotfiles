@@ -1,151 +1,55 @@
 #!/usr/bin/env bash
-
-
-####################### DESCRIPTION: #######################
-#
-# multiselect is a pure bash implementation of a multi
-# selection menu.
-#
-# If "true" is passed as first argument a help (similar to
-# the overview in section "USAGE") will be printed before
-# showing the options. Any other value will hide it.
-#
-# The result will be stored as an array in a variable
-# that is passed to multiselect as second argument.
-#
-# The third argument takes an array that contains all
-# available options.
-#
-# The last argument is optional and can be used to
-# preselect certain options. If used it must be an array
-# that has a value of "true" for every index of the options
-# array that should be preselected.
-#
-########################## USAGE: ##########################
-#
-#   j or ↓        => down
-#   k or ↑        => up
-#   ⎵ (Space)     => toggle selection
-#   ⏎ (Enter)     => confirm selection
-#
-######################### EXAMPLE: #########################
-#
-# source <(curl -sL multiselect.miu.io)
-#
-# my_options=(   "Option 1"  "Option 2"  "Option 3" )
-# preselection=( "true"      "true"      "false"    )
-#
-# multiselect "true" result my_options preselection
-#
-# idx=0
-# for option in "${my_options[@]}"; do
-#     echo -e "$option\t=> ${result[idx]}"
-#     ((idx++))
-# done
-#
-############################################################
-
-function multiselect {
-    if [[ $1 = "true" ]]; then
-        echo -e "j or ↓\t\t=> down"
-        echo -e "k or ↑\t\t=> up"
-        echo -e "⎵ (Space)\t=> toggle selection"
-        echo -e "⏎ (Enter)\t=> confirm selection"
-        echo
+# Compatibility helper: multiselect SHOW_HELP RESULT_ARRAY OPTIONS_ARRAY [DEFAULTS_ARRAY].
+# Bash 4.3+ is required for namerefs. The installers themselves support Bash 3.2.
+multiselect() {
+    if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3))); then
+        printf 'multiselect requires Bash 4.3 or newer.\n' >&2
+        return 1
     fi
-
-    # little helpers for terminal print control and key input
-    ESC=$( printf "\033")
-    cursor_blink_on()   { printf "$ESC[?25h"; }
-    cursor_blink_off()  { printf "$ESC[?25l"; }
-    cursor_to()         { printf "$ESC[$1;${2:-1}H"; }
-    print_inactive()    { printf "$2   $1 "; }
-    print_active()      { printf "$2  $ESC[7m $1 $ESC[27m"; }
-    get_cursor_row()    { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
-
-    local return_value=$2
-    local -n options=$3
-    local -n defaults=$4
-
-    local selected=()
-    for ((i=0; i<${#options[@]}; i++)); do
-        if [[ ${defaults[i]} = "true" ]]; then
-            selected+=("true")
-        else
-            selected+=("false")
-        fi
-        printf "\n"
+    [[ $# == 3 || $# == 4 ]] || {
+        printf 'Expected 3 or 4 arguments.\n' >&2
+        return 1
+    }
+    local _ms_name
+    for _ms_name in "${@:2}"; do
+        [[ $_ms_name =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && $_ms_name != _ms_* ]] || {
+            printf 'Invalid array variable name.\n' >&2
+            return 1
+        }
     done
-
-    # determine current screen position for overwriting the options
-    local lastrow=`get_cursor_row`
-    local startrow=$(($lastrow - ${#options[@]}))
-
-    # ensure cursor and input echoing back on upon a ctrl+c during read -s
-    trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
-    cursor_blink_off
-
-    key_input() {
-        local key
-        IFS= read -rsn1 key 2>/dev/null >&2
-        if [[ $key = ""      ]]; then echo enter; fi;
-        if [[ $key = $'\x20' ]]; then echo space; fi;
-        if [[ $key = "k" ]]; then echo up; fi;
-        if [[ $key = "j" ]]; then echo down; fi;
-        if [[ $key = $'\x1b' ]]; then
-            read -rsn2 key
-            if [[ $key = [A || $key = k ]]; then echo up;    fi;
-            if [[ $key = [B || $key = j ]]; then echo down;  fi;
-        fi 
+    [[ $2 != "$3" && $2 != "${4:-}" ]] || {
+        printf 'Result must be a separate array.\n' >&2
+        return 1
     }
-
-    toggle_option() {
-        local option=$1
-        if [[ ${selected[option]} == true ]]; then
-            selected[option]=false
-        else
-            selected[option]=true
-        fi
-    }
-
-    print_options() {
-        # print options by overwriting the last lines
-        local idx=0
-        for option in "${options[@]}"; do
-            local prefix="[ ]"
-            if [[ ${selected[idx]} == true ]]; then
-              prefix="[\e[38;5;46m✔\e[0m]"
-            fi
-
-            cursor_to $(($startrow + $idx))
-            if [ $idx -eq $1 ]; then
-                print_active "$option" "$prefix"
-            else
-                print_inactive "$option" "$prefix"
-            fi
-            ((idx++))
+    local -n _ms_result=$2 _ms_options=$3
+    if [[ $# == 4 ]]; then local -n _ms_defaults=$4; else local -a _ms_defaults=(); fi
+    local _ms_index _ms_input _ms_number _ms_valid
+    local _ms_numbers=()
+    _ms_result=()
+    for _ms_index in "${!_ms_options[@]}"; do _ms_result[_ms_index]=${_ms_defaults[_ms_index]:-false}; done
+    if [[ $1 == true ]]; then printf 'Enter space-separated option numbers to toggle; Enter confirms; q cancels.\n'; fi
+    while :; do
+        for _ms_index in "${!_ms_options[@]}"; do
+            printf '%s. [%s] %s\n' "$((_ms_index + 1))" "${_ms_result[_ms_index]}" "${_ms_options[_ms_index]}"
         done
-    }
-
-    local active=0
-    while true; do
-        print_options $active
-
-        # user key control
-        case `key_input` in
-            space)  toggle_option $active;;
-            enter)  print_options -1; break;;
-            up)     ((active--));
-                    if [ $active -lt 0 ]; then active=$((${#options[@]} - 1)); fi;;
-            down)   ((active++));
-                    if [ $active -ge ${#options[@]} ]; then active=0; fi;;
-        esac
+        IFS= read -r _ms_input || return 1
+        [[ -n $_ms_input ]] || return 0
+        [[ $_ms_input != q ]] || return 1
+        read -r -a _ms_numbers <<<"$_ms_input"
+        _ms_valid=true
+        for _ms_number in "${_ms_numbers[@]}"; do
+            if [[ ! $_ms_number =~ ^[1-9][0-9]{0,4}$ ]] || ((10#$_ms_number > ${#_ms_options[@]})); then
+                _ms_valid=false
+                break
+            fi
+        done
+        if [[ $_ms_valid != true ]]; then
+            printf 'Invalid selection.\n' >&2
+            continue
+        fi
+        for _ms_number in "${_ms_numbers[@]}"; do
+            _ms_index=$((10#$_ms_number - 1))
+            if [[ ${_ms_result[_ms_index]} == true ]]; then _ms_result[_ms_index]=false; else _ms_result[_ms_index]=true; fi
+        done
     done
-
-    # cursor position back to normal
-    cursor_to $lastrow
-    printf "\n"
-    cursor_blink_on
-
-    eval $return_value='("${selected[@]}")'
 }
