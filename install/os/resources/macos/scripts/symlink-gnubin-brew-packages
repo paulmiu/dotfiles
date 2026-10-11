@@ -31,13 +31,15 @@ done
     exit 1
 }
 prefix=$(brew --prefix)
+prefix=$(cd "$prefix" && pwd -P)
+mkdir -p "$GNUBIN_DIR"
+GNUBIN_DIR=$(cd "$GNUBIN_DIR" && pwd -P)
 case $GNUBIN_DIR in
-    /bin | /sbin | /usr/bin | /usr/sbin | /usr/local/bin | /usr/local/sbin | "$prefix/bin" | "$prefix/sbin")
+    / | /bin | /sbin | /usr/bin | /usr/sbin | /usr/local/bin | /usr/local/sbin | "$prefix/bin" | "$prefix/sbin")
         printf 'Refusing to replace a system or Homebrew bin directory.\n' >&2
         exit 1
         ;;
 esac
-mkdir -p "$GNUBIN_DIR"
 shopt -s nullglob
 for file in "$prefix"/opt/*/libexec/gnubin/* "$prefix"/opt/python*/libexec/bin/*; do
     [[ -f $file && -x $file ]] || continue

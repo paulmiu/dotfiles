@@ -162,6 +162,18 @@ class LauncherTests(unittest.TestCase):
 
 
 class MacOSTests(unittest.TestCase):
+    def test_gnu_links_reject_aliases_of_homebrew_bin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            prefix = Path(directory) / 'brew'
+            (prefix / 'bin').mkdir(parents=True)
+            for suffix in ['/bin/', '/bin/../bin', '/bin/.']:
+                result = bash('prefix_mock=$2; brew() { printf "%s\\n" "$prefix_mock"; }; '
+                              'set -- --gnubin-dir "$1"; '
+                              'source install/os/resources/macos/scripts/symlink-gnubin-brew-packages',
+                              str(prefix) + suffix, prefix)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Refusing to replace', result.stderr)
+
     def test_dry_run_has_no_privileged_actions(self):
         result = bash('source install/lib/macos.sh; sudo() { echo unexpected-sudo; return 44; }; '
                       'macos_main --dry-run --groups=essentials')
