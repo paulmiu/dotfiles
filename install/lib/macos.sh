@@ -87,7 +87,9 @@ macos_main() (
     macos_brew
     local bundle='' repo
     repo=$(cd "$INSTALL_ROOT/.." && pwd)
-    if [[ -e $repo/.git && $DOTFILES_REF == main ]]; then
+    if [[ -f $INSTALL_ROOT/source.bundle && $DOTFILES_REF == main ]]; then
+        bundle="$INSTALL_ROOT/source.bundle"
+    elif [[ -e $repo/.git && $DOTFILES_REF == main ]]; then
         git -C "$repo" bundle create "$MAC_WORK/dotfiles.bundle" HEAD
         bundle="$MAC_WORK/dotfiles.bundle"
     fi

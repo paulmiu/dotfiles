@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import tarfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -100,6 +101,64 @@ class LinuxTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("upgrade", result.stdout)
         self.assertNotIn("--allow-", result.stdout)
+
+
+class LauncherTests(unittest.TestCase):
+    def test_remote_argument_quoting_round_trips_without_execution(self):
+        for value in ["space separated", "a'b", "$(exit 42)", "line1\nline2", "`exit 42`", ""]:
+            result = bash('source install/lib/launcher.sh; shell_quote "$1"', value)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            executed = subprocess.run(["/bin/sh", "-c", "printf '%s' " + result.stdout],
+                                      text=True, capture_output=True, timeout=5)
+            self.assertEqual(executed.returncode, 0)
+            self.assertEqual(executed.stdout, value)
+
+    def test_invalid_remote_targets_and_conflicting_modes(self):
+        for args in [("--remote=-oProxyCommand=bad",), ("--remote=a;exit",),
+                     ("--remote=a@b@c",), ("--local", "--remote=host"), ("--local", "--port=22")]:
+            result = bash('source install/lib/launcher.sh; installer_init; parse_launcher_options "$@"', *args)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_remote_dry_run_does_not_connect(self):
+        result = bash('source install/lib/launcher.sh; ssh() { echo unexpected-ssh; return 42; }; '
+                      'launcher_main --remote=root@example.com --dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unexpected-ssh", result.stdout)
+
+    def test_local_failure_is_not_hidden_by_logging(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "os").mkdir()
+            (root / "os/ubuntu.sh").write_text('exit 37\n')
+            result = bash('source install/lib/launcher.sh; installer_init; INSTALL_ROOT=$1; HOME=$1; '
+                          'sudo() { shift; "$@"; }; detect_platform() { echo ubuntu; }; '
+                          'parse_launcher_options --local --yes; local_install', root)
+            self.assertEqual(result.returncode, 37, result.stderr)
+            self.assertNotIn("finished successfully", result.stdout)
+
+    def test_payload_contains_committed_snapshot_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo = root / "repo"
+            repo.mkdir()
+            (repo / "install/lib").mkdir(parents=True)
+            (repo / "install/lib/launcher.sh").write_text('# fixture\n')
+            (repo / "tracked").write_text('committed')
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
+            subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Installer Test',
+                            '-c', 'user.email=installer@example.invalid', '-c', 'commit.gpgsign=false',
+                            'commit', '-qm', 'fixture'], check=True)
+            (repo / "tracked").write_text('uncommitted')
+            (repo / "staged").write_text('private unrelated change')
+            subprocess.run(['git', '-C', str(repo), 'add', 'staged'], check=True)
+            result = bash('source install/lib/launcher.sh; installer_init; DOTFILES_REF=main; '
+                          'prepare_payload "$1" "$2"', repo, root / "payload")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with tarfile.open(root / "payload/payload.tar.gz") as archive:
+                self.assertEqual(archive.extractfile('./tracked').read(), b'committed')
+                self.assertNotIn('./staged', archive.getnames())
+                self.assertIn('./install/source.bundle', archive.getnames())
 
 
 class MacOSTests(unittest.TestCase):

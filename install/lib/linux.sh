@@ -98,7 +98,10 @@ run_user_setup() (
     cp "$INSTALL_ROOT/lib/common.sh" "$INSTALL_ROOT/lib/user.sh" "$stage/"
     # A local checkout is installed from its committed snapshot, including unpublished commits.
     # Staged and unstaged work is never copied to another account or host.
-    if [[ -e $repo/.git && $DOTFILES_REF == main ]]; then
+    if [[ -f $INSTALL_ROOT/source.bundle && $DOTFILES_REF == main ]]; then
+        cp "$INSTALL_ROOT/source.bundle" "$stage/dotfiles.bundle"
+        bundle="$stage/dotfiles.bundle"
+    elif [[ -e $repo/.git && $DOTFILES_REF == main ]]; then
         git -c safe.directory="$repo" -C "$repo" bundle create "$stage/dotfiles.bundle" HEAD
         bundle="$stage/dotfiles.bundle"
     fi
