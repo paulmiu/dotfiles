@@ -113,6 +113,8 @@ user_main() {
     installer_init
     local ref=$1 skip_plugins=$2 key=$3 bundle=${4:-} castle="$HOME/.homesick/repos/dotfiles"
     [[ -d $HOME && $HOME != / ]] || die 'Invalid target home directory.'
+    # sudo changes identity and HOME, but can leave an inaccessible caller working directory.
+    cd "$HOME"
     umask 077
     USER_WORK=$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-user-work.XXXXXX")
     trap user_cleanup EXIT
