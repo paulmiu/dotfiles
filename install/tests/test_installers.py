@@ -102,6 +102,26 @@ class LinuxTests(unittest.TestCase):
         self.assertNotIn("--allow-", result.stdout)
 
 
+class MacOSTests(unittest.TestCase):
+    def test_dry_run_has_no_privileged_actions(self):
+        result = bash('source install/lib/macos.sh; sudo() { echo unexpected-sudo; return 44; }; '
+                      'macos_main --dry-run --groups=essentials')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("unexpected-sudo", result.stdout)
+        self.assertIn("fish", result.stdout)
+
+    def test_linux_only_options_are_rejected(self):
+        for option in ["--new-ssh-port=22222", "--hostname=test", "--reboot", "--upgrade"]:
+            result = bash('bash install/os/macos.sh --dry-run "$1"', option)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Linux-only", result.stderr)
+
+    def test_preferences_are_opt_in(self):
+        result = bash('source install/lib/macos.sh; installer_init; parse_options --yes; '
+                      'macos_groups; select_groups; group_selected preferences')
+        self.assertNotEqual(result.returncode, 0)
+
+
 class UserFilesTests(unittest.TestCase):
     def test_conflicting_dotfiles_are_backed_up_and_reruns_preserve_backup(self):
         with tempfile.TemporaryDirectory() as directory:
