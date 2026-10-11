@@ -1,0 +1,37 @@
+name: Installer checks
+on:
+  push:
+    paths: ['install/**', '.github/workflows/installers.yml']
+  pull_request:
+    paths: ['install/**', '.github/workflows/installers.yml']
+permissions:
+  contents: read
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt
+      - run: bash install/tests/check.sh
+  macos-bash:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: PYTHONDONTWRITEBYTECODE=1 TEST_BASH=/bin/bash python3 -m unittest discover -s install/tests -p 'test_*.py' -v
+  linux-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: debian, image: 'debian:13-slim' }
+          - { platform: ubuntu, image: 'ubuntu:24.04' }
+          - { platform: fedora, image: 'fedora:44' }
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: docker run --rm -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace '${{ matrix.image }}' bash install/tests/container-smoke.sh '${{ matrix.platform }}'
+  ssh-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: python3 install/tests/remote-smoke.py
