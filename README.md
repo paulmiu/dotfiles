@@ -76,6 +76,7 @@ Run `--help` for all options and an OS entry point's `--help` for package groups
 - macOS preference imports are opt-in; Gatekeeper is not disabled.
 - Required command failures return nonzero. Per-user launcher logs are private under `~/.local/state/dotfiles/logs/`.
 - SSH configuration is validated before activation and restored on activation failure. Other package/account changes are not automatically rolled back.
+- Without running systemd, optional SSH daemon configuration is skipped automatically. Explicit SSH-port, hostname, reboot or Cockpit changes still require systemd.
 - Initial plugin-manager and Homebrew bootstrap revisions are pinned in the source. Package versions and configured plugins follow upstream; this is not a fully reproducible OS image builder.
 
 See [Debian](install/os/debian.md), [Ubuntu](install/os/ubuntu.md), [Fedora](install/os/fedora.md), and [macOS](install/os/macos.md) for details.

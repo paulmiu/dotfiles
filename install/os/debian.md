@@ -26,6 +26,6 @@ sudo bash install/os/debian.sh --yes --admin-user=paul \
 
 As with Ubuntu, Debian packages provide `batcat` and `fdfind` for `bat` and `fd-find`; the existing shell configuration handles those names.
 
-`--upgrade`, `--hostname` and `--reboot` are explicit choices. `--new-ssh-port` adds a listener while retaining existing ports. A running systemd is required for SSH changes; use `--skip-ssh` for container provisioning. Existing SSH authentication policy and host keys remain intact.
+`--upgrade`, `--hostname` and `--reboot` are explicit choices. `--new-ssh-port` adds a listener while retaining existing ports. Without running systemd, the installer automatically skips optional SSH daemon configuration and continues installing packages and dotfiles. Explicit SSH-port, hostname and reboot changes still require systemd and fail before provisioning when it is unavailable. `--skip-ssh` always leaves SSH daemon configuration untouched. Existing SSH authentication policy and host keys remain intact.
 
 See [the shared Linux behavior documented for Ubuntu](ubuntu.md) for backups, existing checkouts, plugin installation, error handling and SSH recovery. Container tests cover Debian 13 package installation, account setup, dotfile links, repeat runs and the OpenSSH parser; full provider-firewall and systemd activation behavior still needs a disposable VPS/VM test.

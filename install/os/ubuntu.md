@@ -24,7 +24,7 @@ Use `--hostname=server-name` to change the hostname and `--reboot` to schedule a
 
 `--new-ssh-port=22222` **adds** a port while retaining existing listeners. Configuration is validated with OpenSSH before activation and restored if activation fails. Open the port in any provider firewall, verify a second connection, and remove obsolete listeners separately. The installer does not replace authentication policy or host keys. A backup is kept beside `sshd_config`.
 
-`--skip-ssh` leaves SSH daemon configuration untouched and supports container testing. Hostname, reboot and Cockpit operations still require running systemd.
+`--skip-ssh` leaves SSH daemon configuration untouched. Without running systemd, optional SSH configuration is skipped automatically so packages and dotfiles can still be installed. Explicit SSH-port, hostname and reboot changes require systemd and fail before provisioning when it is unavailable.
 
 For socket-activated SSH, new listeners retain the existing interfaces and address families. Socket changes require the service's `KillMode=process` so established sessions survive the combined socket/service restart. Explicit `ListenAddress` settings that prevent a requested port cause setup to stop. Firewall and SELinux rules added for an explicitly requested port remain available for a retry if later activation fails; daemon configuration is rolled back.
 

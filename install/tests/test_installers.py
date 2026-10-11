@@ -72,6 +72,46 @@ class CommonTests(unittest.TestCase):
 
 
 class LinuxTests(unittest.TestCase):
+    def service_preflight(self, available, *args):
+        return bash('source install/lib/linux.sh; installer_init; parse_options "$@"; '
+                    'DISTRO=fedora; linux_groups; select_groups; '
+                    f'systemd_available() {{ return {0 if available else 1}; }}; '
+                    'linux_service_preflight; printf "SKIP_SSH=%s" "$SKIP_SSH"',
+                    '--yes', *args)
+
+    def test_default_install_skips_ssh_when_systemd_is_unavailable(self):
+        result = self.service_preflight(False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('SKIP_SSH=true', result.stdout)
+        self.assertIn('skipping SSH daemon configuration', result.stderr)
+
+    def test_explicit_skip_ssh_works_with_or_without_systemd(self):
+        for available in [False, True]:
+            result = self.service_preflight(available, '--skip-ssh')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('SKIP_SSH=true', result.stdout)
+            self.assertEqual(result.stderr, '')
+
+    def test_explicit_service_changes_require_systemd(self):
+        for args, operation in [
+            (('--new-ssh-port=22222',), '--new-ssh-port'),
+            (('--skip-ssh', '--hostname=fixture'), '--hostname'),
+            (('--skip-ssh', '--reboot'), '--reboot'),
+            (('--skip-ssh', '--groups=cockpit'), 'Cockpit'),
+        ]:
+            with self.subTest(args=args):
+                result = self.service_preflight(False, *args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(operation, result.stderr)
+                self.assertIn('requires a running systemd', result.stderr)
+
+    def test_systemd_hosts_keep_ssh_configuration_enabled(self):
+        for args in [(), ('--new-ssh-port=22222',)]:
+            result = self.service_preflight(True, *args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('SKIP_SSH=false', result.stdout)
+            self.assertEqual(result.stderr, '')
+
     def test_platform_help_and_dry_run_work_without_root(self):
         for platform in ["ubuntu", "debian", "fedora"]:
             for option in ["--help", "--dry-run"]:

@@ -37,6 +37,24 @@ linux_packages() {
     if [[ $DISTRO == fedora && -n $NEW_SSH_PORT ]]; then PACKAGES+=(policycoreutils-python-utils); fi
 }
 
+systemd_available() {
+    [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1
+}
+
+linux_service_preflight() {
+    if systemd_available; then return 0; fi
+    # Optional SSH integration must not block dotfiles in a managed shell or container.
+    # Explicit requests still fail before any packages, accounts or configuration change.
+    [[ -z $NEW_SSH_PORT ]] || die '--new-ssh-port requires a running systemd.'
+    [[ -z $NEW_HOSTNAME ]] || die '--hostname requires a running systemd.'
+    [[ $REBOOT != true ]] || die '--reboot requires a running systemd.'
+    if group_selected cockpit; then die 'Cockpit setup requires a running systemd.'; fi
+    if [[ $SKIP_SSH != true ]]; then
+        warn 'No running systemd found; skipping SSH daemon configuration.'
+        SKIP_SSH=true
+    fi
+}
+
 linux_preflight() {
     local actual_id version
     [[ -r /etc/os-release ]] || die 'Cannot identify the Linux distribution.'
@@ -48,10 +66,7 @@ linux_preflight() {
         ((${version%%.*} >= 13)) || die 'The Debian installer targets Debian 13 (Trixie) or newer.'
     fi
     if [[ $DISTRO == fedora ]]; then require_command dnf; else require_command apt-get; fi
-    if [[ $SKIP_SSH != true || -n $NEW_HOSTNAME || $REBOOT == true ]] || group_selected cockpit; then
-        [[ -d /run/systemd/system ]] || die 'A running systemd is required for SSH/hostname/reboot/Cockpit changes. Use --skip-ssh for containers.'
-        require_command systemctl
-    fi
+    linux_service_preflight
     ADMIN_USER=${ADMIN_USER:-${SUDO_USER:-root}}
     valid_user "$ADMIN_USER" || die 'Invalid target username.'
     if ! id "$ADMIN_USER" >/dev/null 2>&1 && [[ $ASSUME_YES == true ]]; then
@@ -130,11 +145,13 @@ linux_main() {
     linux_groups
     select_groups
     linux_packages
+    if [[ $DRY_RUN != true ]]; then
+        require_root
+        linux_preflight
+    fi
     print_plan "$DISTRO"
     log "Packages: ${PACKAGES[*]}"
     if [[ $DRY_RUN == true ]]; then return 0; fi
-    require_root
-    linux_preflight
     if [[ -n $PUBLIC_SSH_KEY ]]; then validate_public_key "$PUBLIC_SSH_KEY"; fi
     confirm 'Apply this installation plan?' yes || die 'Installation cancelled.'
     mkdir /run/dotfiles-installer.lock 2>/dev/null || die 'Another installer is running, or /run/dotfiles-installer.lock remains from an interrupted run.'
