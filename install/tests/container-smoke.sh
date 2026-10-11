@@ -17,7 +17,9 @@ bash "install/os/$platform.sh" "${args[@]}"
 test -L /home/installer-test/.vimrc
 test -d /home/installer-test/.homesick/repos/dotfiles/.git
 test "$(stat -c %U /home/installer-test/.homesick/repos/dotfiles)" = installer-test
-find /home/installer-test/.local/state/dotfiles/backups -name .vimrc -exec grep -qx 'personal configuration' {} \;
+backup=$(find /home/installer-test/.local/state/dotfiles/backups -name .vimrc -print -quit)
+[[ -n $backup ]]
+grep -qx 'personal configuration' "$backup"
 if [[ $platform == fedora ]]; then admin_group=wheel; else admin_group=sudo; fi
 id -nG installer-test | tr ' ' '\n' | grep -qx "$admin_group"
 test "$(getent passwd installer-test | cut -d: -f7)" = /usr/bin/fish

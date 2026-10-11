@@ -15,6 +15,37 @@ write_ssh_candidate() {
     } >"$transaction/candidate"
 }
 
+prepare_ssh_socket() {
+    [[ -n $socket_unit && -n $NEW_SSH_PORT ]] || return 0
+    systemctl show "$socket_unit" --property=Listen --value >"$transaction/listen"
+    sed 's/ (Stream)/\n/g' "$transaction/listen" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//' >"$transaction/endpoints"
+    [[ -s $transaction/endpoints ]] || die 'Cannot determine existing SSH socket listeners.'
+    if grep -Eq "(^|:)${NEW_SSH_PORT}$" "$transaction/endpoints"; then return 0; fi
+    # Restart both units in one systemd transaction so the old daemon releases its listeners.
+    # KillMode=process preserves established SSH session children during that restart.
+    [[ $(systemctl show "$service_unit" --property=KillMode --value) == process ]] || die 'SSH socket changes require KillMode=process to preserve existing sessions.'
+    socket_override="$unit_dir/$socket_unit.d/90-dotfiles-listen.conf"
+    [[ ! -L $socket_override ]] || die 'Refusing to replace a symlinked systemd override.'
+    mkdir -p "$(dirname "$socket_override")"
+    if [[ -f $socket_override ]]; then cp -p "$socket_override" "$transaction/socket-original"; fi
+    {
+        printf '[Socket]\nListenStream=\n'
+        while IFS= read -r endpoint; do printf 'ListenStream=%s\n' "$endpoint"; done <"$transaction/endpoints"
+        # Add the new port on exactly the existing address families and interfaces.
+        # A private or IPv4-only listener must not become a public or IPv6 listener.
+        while IFS= read -r endpoint; do
+            if valid_port "$endpoint"; then
+                printf 'ListenStream=%s\n' "$NEW_SSH_PORT"
+            elif [[ $endpoint == *:* ]] && valid_port "${endpoint##*:}"; then
+                printf 'ListenStream=%s:%s\n' "${endpoint%:*}" "$NEW_SSH_PORT"
+            else
+                die "Unsupported SSH socket endpoint: $endpoint"
+            fi
+        done <"$transaction/endpoints"
+
+    } | awk '!seen[$0]++' >"$transaction/socket-candidate"
+}
+
 ssh_rollback() {
     local status=$?
     trap - EXIT
@@ -27,8 +58,11 @@ ssh_rollback() {
             else rm -f "$socket_override"; fi
         fi
         systemctl daemon-reload || warn 'Could not reload systemd during rollback.'
-        if [[ -n $socket_unit ]]; then systemctl restart "$socket_unit" || warn 'Could not restore the SSH socket.'; fi
-        systemctl restart "$service_unit" || warn 'Could not restart SSH after rollback; use the provider console.'
+        if [[ -f $transaction/socket-candidate ]]; then
+            systemctl restart "$socket_unit" "$service_unit" || warn 'Could not restore SSH listeners; use the provider console.'
+        else
+            systemctl reload-or-restart "$service_unit" || warn 'Could not restore SSH; use the provider console.'
+        fi
     fi
     rm -rf "$transaction"
     exit "$status"
@@ -69,12 +103,21 @@ configure_ssh() (
     done <<<"$old_ports"
     write_ssh_candidate
     "$SSHD" -t -f "$transaction/candidate"
-    if cmp -s "$config" "$transaction/candidate"; then
+    prepare_ssh_socket
+    if [[ -z $socket_unit && -n $NEW_SSH_PORT ]]; then
+        "$SSHD" -T -f "$transaction/candidate" | awk -v port="$NEW_SSH_PORT" '
+            $1 == "listenaddress" { split($2, parts, ":"); if (parts[length(parts)] == port) found=1 }
+            END { exit !found }' || die 'Explicit ListenAddress settings prevent the requested SSH port; update those bindings manually.'
+    fi
+    if cmp -s "$config" "$transaction/candidate" && [[ ! -f $transaction/socket-candidate ]]; then
+        if [[ -z $socket_unit ]]; then
+            systemctl is-active --quiet "$service_unit" || systemctl start "$service_unit"
+        fi
         log 'SSH configuration is already current.'
         return 0
     fi
 
-    if [[ -n $NEW_SSH_PORT ]] && ! grep -qx "$NEW_SSH_PORT" <<<"$old_ports"; then
+    if [[ -n $NEW_SSH_PORT ]] && { ! grep -qx "$NEW_SSH_PORT" <<<"$old_ports" || [[ -f $transaction/socket-candidate ]]; }; then
         if command -v getenforce >/dev/null 2>&1 && [[ $(getenforce) != Disabled ]]; then
             require_command semanage
             # Do not reassign a port owned by another SELinux service.
@@ -90,28 +133,7 @@ configure_ssh() (
         elif command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
             ufw allow "$NEW_SSH_PORT/tcp"
         fi
-        if [[ -n $socket_unit ]]; then
-            socket_override="$unit_dir/$socket_unit.d/90-dotfiles-listen.conf"
-            [[ ! -L $socket_override ]] || die 'Refusing to replace a symlinked systemd override.'
-            mkdir -p "$(dirname "$socket_override")"
-            if [[ -f $socket_override ]]; then cp -p "$socket_override" "$transaction/socket-original"; fi
-            # Preserve actual socket addresses, including provider-specific bindings.
-            systemctl show "$socket_unit" --property=Listen --value >"$transaction/listen"
-            sed 's/ (Stream)/\n/g' "$transaction/listen" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//' >"$transaction/endpoints"
-            [[ -s $transaction/endpoints ]] || die 'Cannot determine existing SSH socket listeners.'
-            {
-                printf '[Socket]\nListenStream=\n'
-                while IFS= read -r endpoint; do printf 'ListenStream=%s\n' "$endpoint"; done <"$transaction/endpoints"
-                if [[ -r /proc/net/if_inet6 ]] && [[ $(cat /proc/sys/net/ipv6/conf/all/disable_ipv6) == 0 ]]; then
-                    printf 'ListenStream=[::]:%s\n' "$NEW_SSH_PORT"
-                    if [[ $(systemctl show "$socket_unit" --property=BindIPv6Only --value) == ipv6-only ]]; then
-                        printf 'ListenStream=0.0.0.0:%s\n' "$NEW_SSH_PORT"
-                    fi
-                else
-                    printf 'ListenStream=0.0.0.0:%s\n' "$NEW_SSH_PORT"
-                fi
-            } >"$transaction/socket-candidate"
-        fi
+
     fi
 
     activated=true
@@ -123,10 +145,13 @@ configure_ssh() (
     fi
     "$SSHD" -t -f "$config"
     systemctl daemon-reload
-    if [[ -n $socket_unit ]]; then
-        systemctl restart "$socket_unit"
-        systemctl try-restart "$service_unit"
+    if [[ -f $transaction/socket-candidate ]]; then
+        systemctl restart "$socket_unit" "$service_unit"
         systemctl is-active --quiet "$socket_unit"
+        systemctl is-active --quiet "$service_unit"
+    elif [[ -n $socket_unit ]]; then
+        # An inactive socket-activated daemon reads the new config on its next start.
+        if systemctl is-active --quiet "$service_unit"; then systemctl reload "$service_unit"; fi
     else
         systemctl reload-or-restart "$service_unit"
         systemctl is-active --quiet "$service_unit"

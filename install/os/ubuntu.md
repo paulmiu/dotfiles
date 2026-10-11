@@ -26,6 +26,8 @@ Use `--hostname=server-name` to change the hostname and `--reboot` to schedule a
 
 `--skip-ssh` leaves SSH daemon configuration untouched and supports container testing. Hostname, reboot and Cockpit operations still require running systemd.
 
+For socket-activated SSH, new listeners retain the existing interfaces and address families. Socket changes require the service's `KillMode=process` so established sessions survive the combined socket/service restart. Explicit `ListenAddress` settings that prevent a requested port cause setup to stop. Firewall and SELinux rules added for an explicitly requested port remain available for a retry if later activation fails; daemon configuration is rolled back.
+
 Dotfile conflicts are backed up under `~/.local/state/dotfiles/backups/`. Existing Git checkouts and local changes are preserved. A local source checkout supplies a Git bundle of its committed HEAD, so unpublished commits work and uncommitted changes are excluded. `--ref` selects a remote branch, tag or commit for a fresh installation instead. Existing checkouts are never reset or updated automatically.
 
 Use `--skip-plugins` to omit plugin downloads and `--no-shell-change` to retain the current login shell. Plugin installation failures stop the installer; rerunning resumes from the installed repositories. No outbound private SSH key is generated automatically.
