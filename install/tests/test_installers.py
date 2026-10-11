@@ -73,7 +73,7 @@ class CommonTests(unittest.TestCase):
 
 class LinuxTests(unittest.TestCase):
     def test_platform_help_and_dry_run_work_without_root(self):
-        for platform in ["ubuntu", "fedora"]:
+        for platform in ["ubuntu", "debian", "fedora"]:
             for option in ["--help", "--dry-run"]:
                 result = bash('bash "$1" "$2"', f'install/os/{platform}.sh', option)
                 self.assertEqual(result.returncode, 0, result.stderr)

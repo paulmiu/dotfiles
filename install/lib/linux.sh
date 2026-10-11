@@ -38,10 +38,15 @@ linux_packages() {
 }
 
 linux_preflight() {
-    local actual_id
+    local actual_id version
     [[ -r /etc/os-release ]] || die 'Cannot identify the Linux distribution.'
     actual_id=$(sed -n 's/^ID=//p' /etc/os-release | tr -d '\042\047')
     [[ $actual_id == "$DISTRO" ]] || die "This entry point is for $DISTRO, but the system is $actual_id."
+    if [[ $DISTRO == debian ]]; then
+        version=$(sed -n 's/^VERSION_ID=//p' /etc/os-release | tr -d '\042\047')
+        [[ $version =~ ^[0-9]+(\.[0-9]+)*$ ]] || die 'Cannot determine the Debian version.'
+        ((${version%%.*} >= 13)) || die 'The Debian installer targets Debian 13 (Trixie) or newer.'
+    fi
     if [[ $DISTRO == fedora ]]; then require_command dnf; else require_command apt-get; fi
     if [[ $SKIP_SSH != true || -n $NEW_HOSTNAME || $REBOOT == true ]] || group_selected cockpit; then
         [[ -d /run/systemd/system ]] || die 'A running systemd is required for SSH/hostname/reboot/Cockpit changes. Use --skip-ssh for containers.'

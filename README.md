@@ -12,7 +12,7 @@ bash install/install.sh --local --dry-run
 bash install/install.sh --local
 ```
 
-The launcher detects Ubuntu, Fedora or macOS. Linux system changes require root; the launcher uses sudo when needed. macOS installation runs as the current account without sudo around the whole script.
+The launcher detects Debian, Ubuntu, Fedora or macOS. Linux system changes require root; the launcher uses sudo when needed. macOS installation runs as the current account without sudo around the whole script.
 
 Select an existing account or create a Linux admin interactively:
 
@@ -60,7 +60,7 @@ Run `--help` for all options and an OS entry point's `--help` for package groups
 - SSH configuration is validated before activation and restored on activation failure. Other package/account changes are not automatically rolled back.
 - Initial plugin-manager and Homebrew bootstrap revisions are pinned in the source. Package versions and configured plugins follow upstream; this is not a fully reproducible OS image builder.
 
-See [Ubuntu](install/os/ubuntu.md), [Fedora](install/os/fedora.md), and [macOS](install/os/macos.md) for details.
+See [Debian](install/os/debian.md), [Ubuntu](install/os/ubuntu.md), [Fedora](install/os/fedora.md), and [macOS](install/os/macos.md) for details.
 
 ## Development
 
@@ -69,3 +69,12 @@ bash install/tests/check.sh
 ```
 
 Requires Bash, ShellCheck, shfmt and Python 3. Regression tests use temporary directories and mocked system commands. Linux integration checks must run in disposable containers/VMs; never run a provisioning integration test on your workstation. The macOS installer supports the system Bash 3.2.
+
+CI also runs isolated smoke tests on Debian 13, Ubuntu 24.04 and Fedora 44, plus the unit suite on macOS's Bash 3.2. To reproduce a Linux test:
+
+```bash
+docker run --rm -v "$PWD:/workspace:ro" -w /workspace debian:13-slim \
+  bash install/tests/container-smoke.sh debian
+```
+
+These tests exercise package/account setup and reruns. OpenSSH parsing and rollback are tested with the real `sshd` binary and mocked service activation; containers do not establish that a provider's firewall or systemd listener works on a real VPS.

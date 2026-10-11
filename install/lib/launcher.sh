@@ -19,7 +19,7 @@ detect_platform() {
             local distro
             distro=$(sed -n 's/^ID=//p' /etc/os-release | tr -d '\042\047')
             case $distro in
-                ubuntu | fedora) printf '%s\n' "$distro" ;;
+                ubuntu | debian | fedora) printf '%s\n' "$distro" ;;
                 *) die "Unsupported Linux distribution: $distro" ;;
             esac
             ;;
