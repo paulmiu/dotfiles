@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-files=(install/lib/common.sh install/tests/check.sh)
+export PYTHONDONTWRITEBYTECODE=1
+files=(install/lib/*.sh install/os/ubuntu.sh install/os/fedora.sh install/tests/*.sh)
 for file in "${files[@]}"; do bash -n "$file"; done
 shellcheck "${files[@]}"
 shfmt -d -i 4 -ci "${files[@]}"

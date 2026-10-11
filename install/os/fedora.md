@@ -1,116 +1,33 @@
-# This guide is an example how to setup a fedora server after a clean installation
+# Fedora setup
 
-Tested with Fedora 22 and above.  
-A description of the Variables used in this guide can be found at the bottom.
-
-## On the server
-
-### STEP 1: Login as root user
-
-### STEP 2: Creating your admins user account and add it to the sudoers group
-
-If you already created an user account for the admin, skip this step.
-Otherwise create your admins user account:
+Run from a complete repository checkout. The platform entry point uses the shared Linux installer.
 
 ```bash
-adduser <SERVER_USERNAME>
-passwd <SERVER_USERNAME>
-gpasswd wheel -a <SERVER_USERNAME>
+bash install/os/fedora.sh --help
+bash install/os/fedora.sh --dry-run --admin-user=paul
+sudo bash install/os/fedora.sh --admin-user=paul
 ```
 
-### STEP 3: Install the most important tools
+An existing user is added to the distribution's administrator group. A new account can be created interactively, including its sudo password. `--yes` requires an existing account. Only the selected account receives dotfiles; root is the default when invoked directly as root without `--admin-user`.
+
+Package groups: `basic`, `essentials`, `remote`, `terminal`, `search`, `kubernetes`, `cockpit`. Kubernetes and Cockpit are opt-in. Mandatory prerequisites (including sudo, Git, CA certificates and OpenSSH) are installed even with `--groups=none`.
 
 ```bash
-dnf update
-dnf group install --allowerasing "Fedora Server Edition" "Infrastructure Server"
-dnf install util-linux-user tar net-tools lsof bind-utils git vim tmux fish mosh ncdu htop fzf bat fd-find ripgrep jq
+sudo bash install/os/fedora.sh --yes --admin-user=paul \
+  --groups=basic,essentials,remote,terminal,search \
+  --add-ssh-key="$(cat ~/.ssh/id_ed25519.pub)"
 ```
 
-The install script asks which tool groups should be installed. Kubernetes tools
-(`kubectx`, `kubens`) are available as a separate group and are disabled by
-default.
+System upgrades require `--upgrade`. The installer does not perform a distribution upgrade or override package-manager safeguards. Fedora server environment groups are no longer implicitly installed.
 
-### STEP 4: Clone the dotfiles from these reporitory
+Use `--hostname=server-name` to change the hostname and `--reboot` to schedule a reboot after success. Otherwise both are left alone.
 
-```bash
-git clone https://github.com/andsens/homeshick.git $HOME/.homesick/repos/homeshick
-$HOME/.homesick/repos/homeshick/bin/homeshick clone paulmiu/dotfiles
-```
+`--new-ssh-port=22222` **adds** a port while retaining existing listeners. Configuration is validated with OpenSSH before activation and restored if activation fails. Open the port in any provider firewall, verify a second connection, and remove obsolete listeners separately. The installer does not replace authentication policy or host keys. A backup is kept beside `sshd_config`.
 
-### STEP 5: Login to your admins user account
+`--skip-ssh` leaves SSH daemon configuration untouched and supports container testing. Hostname, reboot and Cockpit operations still require running systemd.
 
-```bash
-su - <SERVER_USERNAME>
-```
+Dotfile conflicts are backed up under `~/.local/state/dotfiles/backups/`. Existing Git checkouts and local changes are preserved. A local source checkout supplies a Git bundle of its committed HEAD, so unpublished commits work and uncommitted changes are excluded. `--ref` selects a remote branch, tag or commit for a fresh installation instead. Existing checkouts are never reset or updated automatically.
 
-### STEP 6: Configure git
+Use `--skip-plugins` to omit plugin downloads and `--no-shell-change` to retain the current login shell. Plugin installation failures stop the installer; rerunning resumes from the installed repositories. No outbound private SSH key is generated automatically.
 
-```bash
-git config --global user.name "<FIRST_NAME> <LAST_NAME>"
-git config --global user.email "<EMAIL_ADDRESS>"
-```
-
-### STEP 7: Clone the dotfiles from these reporitory
-
-```bash
-git clone https://github.com/andsens/homeshick.git $HOME/.homesick/repos/homeshick
-$HOME/.homesick/repos/homeshick/bin/homeshick clone paulmiu/dotfiles
-```
-
-## On the client
-
-### STEP 1: Setup ssh config to login easily with `ssh <SERVER_NICKNAME>`
-
-Insert following four lines in `$HOME/.ssh/config` on the host:
-
-```bash
-Host <SERVER_NICKNAME>
-  User <SERVER_USERNAME>
-  HostName <SERVER_HOSTNAME>
-  Port <SERVER_PORT>
-  SendEnv TMUX_AUTOSTART
-```
-
-### STEP 2: Add clients public key to your servers athorized keys
-
-This step will enable you to ssh into your server without passphrase.
-
-If you have the `ssh-copy-id` command on your client it's only:
-
-```bash
-ssh-copy-id <SERVER_NICKNAME>
-```
-
-Otherwise you have to call:
-
-```bash
-cat $HOME/.ssh/id_rsa.pub | ssh <SERVER_NICKNAME> "mkdir -p $HOME/.ssh; and cat >> .ssh/authorized_keys"
-```
-
-If you use _bash_ or _zsh_ on the client, replace the `; and` with `&&`.
-
-## Extras
-
-### To start tmux automatically after login add following line to `/etc/ssh/sshd_config`
-
-```bash
-AcceptEnv TMUX_AUTOSTART
-```
-
-After that you have to restart the ssh server with:
-
-```bash
-systemctl restart sshd.service
-```
-
-## Variables in this guide
-
-```bash
-<SERVER_HOSTNAME> = servers hostname or IP address
-<SERVER_PORT> = port on server where the ssh service is listening
-<SERVER_NICKNAME> = an abbreviation/short name for the server
-<SERVER_USERNAME> = the admins username on the server (not root)
-<FIRST_NAME> = admins first name
-<LAST_NAME> = admins last name
-<EMAIL_ADDRESS> = admins email address
-```
+The installer stops on failures, but package and account changes are not a system-wide transaction. Inspect the error before rerunning. If a terminated process leaves `/run/dotfiles-installer.lock`, verify no installer is active before removing that empty directory.
